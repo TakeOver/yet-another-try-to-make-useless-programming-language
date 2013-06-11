@@ -23,9 +23,10 @@ namespace lambda{
         };
         
         struct token_t{
-                Token tok;
+                Token tok; // base tokens, not user's
                 tok_info_t tokinfo;
                 std::wstring val;
+                uint16_t id = 0; // i hope that parser should set then.
                 token_t(Token t, tok_info_t ti, std::wstring v): tok(t), tokinfo(ti),
                 val(v){}
         };

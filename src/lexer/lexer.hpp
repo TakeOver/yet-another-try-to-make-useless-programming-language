@@ -8,7 +8,7 @@
 #include <functional>
 namespace lambda{
         class Lexer{
-                
+
                 std::unordered_map<std::wstring, uint32_t> keywords;
 
                 mutable uint16_t last_tok_id = static_cast<uint16_t>(Token::__END_OF_TOKENS);
@@ -33,7 +33,7 @@ namespace lambda{
                 static constexpr auto is_whitespace = FileStream::is_whitespace;
                 
                 void HandleError(std::wstring msg, tok_info_t ti){
-                        std::wstring ws = L"Syntax error: "+msg + L"on line:" + std::to_wstring(ti.line) + L" in file:" + fs.curfile() + L"\n";
+                        std::wstring ws = L"Syntax error: "+msg + L" at line:" + std::to_wstring(ti.line) + L" in file:" + fs.curfile() + L"\n";
                         ws += fs.datastring(ti.pos) + L"\n";
                         int space = 10;
                         while(--space)
@@ -122,13 +122,7 @@ namespace lambda{
                         
                         TrimWhiteSpaceAndComments();
                 }
-
-        public:
-                Lexer(std::wstring data,std::wstring filename){
-                        fs.push(data, filename);
-                }
-
-                token_t nextTok(){
+                token_t _nextTok(){
                         TrimWhiteSpaceAndComments();
                         switch(fs.recognizeToken()){
                                 case Token::NUM:        return getNum();
@@ -140,6 +134,24 @@ namespace lambda{
                         }
                 }
 
+        public: 
+                std::wstring getError(){
+                        return error;
+                }
+                Lexer(std::wstring data,std::wstring filename){
+                        fs.push(data, filename);
+                }
+
+                token_t nextTok(){
+                        auto tok = _nextTok();
+                        auto iter = keywords.find(tok.val);
+                        if(iter == keywords.end()){
+                                tok.id = static_cast<uint16_t>(tok.tok);
+                        }else{
+                                tok.id = iter->second;
+                        }
+                        return tok;
+                }
                 uint32_t defToken(std::wstring name){
                         user_tokens_si[last_user_tok_id] = name;
                         user_tokens_is[name] = last_user_tok_id;
