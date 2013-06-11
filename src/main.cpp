@@ -29,5 +29,13 @@ int main(int argc, char const *argv[])
         std::wcout << value4.get(L"value5", L"") << L'\n'; // so, boost::ptree ranslates null to string. :C
         std::wcout << value4.get(L"value6",13) << L'\n';
         std::wcout << value4.get(L"value7", L"fail!11221") << L'\n';
+        JsonWriter jw;
+        jw.add(L"SUPERPROPERTY",false);
+        jw.add(L"TEST",42);
+        jw.add(L"LOL",std::wstring(L"LOLI"));
+        jw.addChild(L"123", jr.getPtree());
+        jw.write2File("jsonnew.json");
+        JsonWriter jw1(jr.getPtree());
+        jw1.write2File("newjson.json");
         return 0;
 }

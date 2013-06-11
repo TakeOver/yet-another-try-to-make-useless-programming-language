@@ -19,7 +19,6 @@ namespace lambda{
 
         public:
                 void pop(){                       
-                        std::wcerr << L"poping\n"; 
                         lines.pop_back();
                         positions.pop_back();
                         data.pop_back();
@@ -28,9 +27,9 @@ namespace lambda{
                 std::wstring datastring(uint32_t position){
                         std::wstring str;
                         if(eof())
-                                return L"EOF";
+                                return L"~EOF";
                         if(position> data.back().length())
-                                return L"EOS";
+                                return L"~EOS";
                         auto iter = data.back().begin()+position;
                         while(*iter != L'\n' && iter!=str.end()&& *iter!=L'\0' )
                                 str+=*iter++;
