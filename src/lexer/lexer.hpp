@@ -22,6 +22,8 @@ namespace lambda{
                 std::wstring filename;
 
                 FileStream fs;
+                std::vector<token_t> cache;
+                uint32_t cache_pos = 0;
 
                 std::function<void(FileStream&)> commentsDelegate;
 
@@ -141,9 +143,31 @@ namespace lambda{
                 Lexer(std::wstring data,std::wstring filename){
                         fs.push(data, filename);
                 }
-
+                token_t lookNextTok(){
+                        auto tok = nextTok();
+                        cache_pos --;
+                        return tok;
+                }
+                void decCachePos(){
+                        cache_pos--;
+                }
+                token_t lookTokens(uint32_t num){
+                        while(num--)
+                                nextTok();
+                        return lastTok();
+                }
+                token_t lastTok(){
+                        if(cache.empty())
+                                return token_t(Token::NONE,{0,0},L"ERROR");
+                        return cache[cache_pos];
+                }
                 token_t nextTok(){
+                        if(cache_pos < cache.size()){
+                                return cache[cache_pos++];
+                        }
+                        cache_pos++;
                         auto tok = _nextTok();
+                        cache.push_back(tok);
                         auto iter = keywords.find(tok.val);
                         if(iter == keywords.end()){
                                 tok.id = static_cast<uint16_t>(tok.tok);
