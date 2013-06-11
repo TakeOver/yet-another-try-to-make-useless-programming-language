@@ -25,8 +25,17 @@ namespace lambda{
                         data.pop_back();
                         filenames.pop_back();
                 }
-                std::wstring datastring(uint32_t line){
-                        return data.at(line);
+                std::wstring datastring(uint32_t position){
+                        std::wstring str;
+                        if(eof())
+                                return L"EOF";
+                        if(position> data.back().length())
+                                return L"EOS";
+                        auto iter = data.back().begin()+position;
+                        while(*iter != L'\n' && iter!=str.end()&& *iter!=L'\0' )
+                                str+=*iter++;
+                        return str;
+
                 }
                 std::wstring curfile(){
                         return filenames.back();
@@ -73,6 +82,8 @@ namespace lambda{
                         positions.back()-=num;
                 }
                 Token recognizeToken(bool allow_change = true){
+                        if(eof())
+                                return Token::END;
                         wchar_t wc = curChar(allow_change);
                         if(is_dig(wc))
                                 return Token::NUM;
@@ -84,7 +95,7 @@ namespace lambda{
                                 return Token::CHAR;
                         if(wc == L'\0')
                                 return Token::NONE;
-                        assert(!is_whitespace(wc) && "control white space. stream.hpp");
+            //            assert(!is_whitespace(wc) && "control white space. stream.hpp");
                         return Token::OPERATOR;
 
                 }
@@ -99,6 +110,7 @@ namespace lambda{
                 FileStream(){
                         positions.push_back(0);
                         filenames.push_back(L"__none__");
+                        data.push_back(std::wstring());
                 }
                 void push(std::wstring data, std::wstring filename){
                         this->data.push_back(data), 
