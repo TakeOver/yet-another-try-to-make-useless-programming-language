@@ -1,6 +1,7 @@
 
 #include "lexer/lexer.hpp"
 #include <iostream>
+#include "utils/json.hpp"
 using namespace lambda;
 int main(int argc, char const *argv[])
 {
@@ -19,5 +20,13 @@ int main(int argc, char const *argv[])
         std::wcout << lex->nextTok().val << std::endl;
         std::wcout << lex->nextTok().val << std::endl;
         std::wcout << lex->getError() << std::endl;
+        JsonReader jr ("json.json");
+        std::wcout << jr.get(L"value1", false) << L'\n';
+        std::wcout << jr.get(L"value2", std::wstring(L"fail!")) << L'\n';
+        std::wcout << jr.get(L"value3", 42.0) << L'\n';
+        auto value4 = jr.getChild(L"value4");
+        std::wcout << value4.get(L"value5", L"") << L'\n'; // so, boost::ptree ranslates null to string. :C
+        std::wcout << value4.get(L"value6",13) << L'\n';
+        std::wcout << value4.get(L"value7", L"fail!11221") << L'\n';
         return 0;
 }

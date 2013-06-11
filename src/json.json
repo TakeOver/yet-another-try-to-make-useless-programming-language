@@ -1,0 +1,10 @@
+{
+        "value1":true,
+        "value2":"string",
+        "value3":123.13,
+        "value4":{
+                "value5":null,
+                "value6":42,
+                "value7":"value7"
+        }
+}
