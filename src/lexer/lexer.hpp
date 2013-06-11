@@ -46,10 +46,12 @@ namespace lambda{
                         tok_info_t ti ( fs.line(),fs.position());
                         auto const nt = Token::NUM;
                         wchar_t wc;
-                        while(!fs.eos() && (is_dig(wc=fs.curChar()) || wc == L'.')){
-                                fs.nextChar();
+                        while(!fs.eos() && (is_dig(wc=fs.curChar(false)) || wc == L'.')){
+                                std::wcerr<<L"digit:"<<wc<<L"\n";
+                                fs.nextChar(false);
                                 val+=wc;
                         }
+                        std::wcout<< fs.eos() << L' '<< is_dig(wc)<< L' '<<wc <<L" " << fs.position()<< L'\n';
                         return token_t(nt,ti,val);
                 }
                 
@@ -71,10 +73,10 @@ namespace lambda{
                         auto const nt = Token::STRING;
                         wchar_t wc = 0;
                         while(!fs.eos() && wc != L'\"'){
-                                fs.nextChar();
+                                wc = fs.nextChar();
                                 val+=wc;
                         }
-                        if(wc!=L'\n')
+                        if(wc!=L'\"')
                                 HandleError(L"End eof string expected", ti);
                         fs.nextChar();
                         return token_t(nt,ti,val);
@@ -107,7 +109,7 @@ namespace lambda{
                                 --lim;
                         }
                         fs.retChars(max_kwd_length - matched.size() - lim);
-                        return token_t(nt,ti,val);
+                        return token_t(nt,ti,matched);
                 }
                 void TrimWhiteSpaceAndComments(){
                         while(!fs.eof() && !fs.eos() && is_whitespace(fs.curChar())){
@@ -120,11 +122,30 @@ namespace lambda{
                         TrimWhiteSpaceAndComments();
                 }
 
+        public:
+                Lexer(std::wstring data,std::wstring filename){
+                        fs.push(data, filename);
+                }
+                token_t nextTok(){
+                        TrimWhiteSpaceAndComments();
+                        std::wcerr << fs.datastring(0) << std::endl;
+                        switch(fs.recognizeToken()){
+                                case Token::NUM:        return getNum();
+                                case Token::STRING:     return getString();
+                                case Token::CHAR:       return getChar();
+                                case Token::IDENTIFER:  return getIdent();
+                                case Token::OPERATOR:   return getOperator();
+                                default:                return token_t(Token::NONE,{0,0},L"EOF");
+                        }
+                }
                 uint32_t defToken(std::wstring name){
                         user_tokens_si[last_user_tok_id] = name;
                         user_tokens_is[name] = last_user_tok_id;
+                        keywords[name] = last_user_tok_id;
+                        max_kwd_length = std::max((uint32_t)max_kwd_length,(uint32_t)name.length());
                         return last_user_tok_id++;
                 }
+
 
         };
 }

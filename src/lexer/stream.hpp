@@ -5,6 +5,7 @@
 #include <fstream>
 #include <cassert>
 #include <unordered_map>
+#include <iostream>
 #include "token.hpp"
 namespace lambda{
         class FileStream{
@@ -15,11 +16,10 @@ namespace lambda{
                 std::vector<uint32_t> lines;
 
                 std::vector< uint32_t > states;
-                
-                std::unordered_map<uint32_t, std::wstring> user_tokens;
 
         public:
-                void pop(){                        
+                void pop(){                       
+                        std::wcerr << L"poping\n"; 
                         lines.pop_back();
                         positions.pop_back();
                         data.pop_back();
@@ -44,7 +44,7 @@ namespace lambda{
                         return positions.size() == 1;
                 }
                 bool eos(){
-                        return !eof() && data.size()> positions.back();
+                        return data.back().size()<= positions.back();
                 }
                 wchar_t curChar(bool allow_change = true){
                         if(eof())
@@ -89,12 +89,16 @@ namespace lambda{
 
                 }
                 wchar_t nextChar(bool allow_change = true){
-                        auto tmp = curChar(allow_change);
-                        if(tmp)
+                        if(positions.size()>1)
                                 positions.back()++;
+                        auto tmp = curChar(allow_change);
                         if(tmp == L'\n')
                                 lines.back()++;
                         return tmp;
+                }
+                FileStream(){
+                        positions.push_back(0);
+                        filenames.push_back(L"__none__");
                 }
                 void push(std::wstring data, std::wstring filename){
                         this->data.push_back(data), 
