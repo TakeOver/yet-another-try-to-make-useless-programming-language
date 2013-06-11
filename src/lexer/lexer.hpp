@@ -25,8 +25,6 @@ namespace lambda{
                 std::vector<token_t> cache;
                 uint32_t cache_pos = 0;
 
-                std::function<void(FileStream&)> commentsDelegate;
-
                 bool failed = false;
                 std::wstring error;
 
@@ -96,7 +94,7 @@ namespace lambda{
                 }
 
                 token_t getOperator(){
-                        std::wstring val, matched;
+                        std::wstring val, matched = L"";
                         tok_info_t ti ( fs.line(),fs.position());
                         auto const nt = Token::OPERATOR;
                         wchar_t wc;
@@ -106,11 +104,15 @@ namespace lambda{
                                 fs.nextChar(false);
                                 val+=wc;
                                 auto iter = keywords.find(val);
-                                if(iter!=keywords.end())
+                                if(iter!=keywords.end()) // greegy.
                                         matched = val;
                                 --lim;
                         }
                         fs.retChars(max_kwd_length - matched.size() - lim);
+                        if(matched.size() == 0){
+                                std::wstring tmp; tmp =fs.curChar();
+                                HandleError(std::wstring(L"Unrecognized symbol:\'") + (tmp) + std::wstring(L"\'"), ti);
+                        }
                         return token_t(nt,ti,matched);
                 }
 
@@ -118,21 +120,24 @@ namespace lambda{
                         while(!fs.eof() && is_whitespace(fs.curChar())){
                                 fs.nextChar();
                         }
-                        if(commentsDelegate == nullptr)
-                                return;
-                        commentsDelegate(fs);
-                        
-                        TrimWhiteSpaceAndComments();
+                        // let use '#' as comments. May be I'l fix it later, but now time for HARDCORE;
+                        if(fs.curChar() == L'#'){
+                                while(!fs.eof() && !fs.eos() && fs.nextChar()!=L'\n');
+                                TrimWhiteSpaceAndComments();
+                        }
+
                 }
-                token_t _nextTok(){
-                        TrimWhiteSpaceAndComments();
+                token_t _nextTok(bool trim = true){
+                        if(trim){
+                                TrimWhiteSpaceAndComments();
+                        }
                         switch(fs.recognizeToken()){
                                 case Token::NUM:        return getNum();
                                 case Token::STRING:     return getString();
                                 case Token::CHAR:       return getChar();
                                 case Token::IDENTIFER:  return getIdent();
                                 case Token::OPERATOR:   return getOperator();
-                                default:                return token_t(Token::NONE,{0,0},L"EOF");
+                                default:                return token_t(Token::NONE,{0,0},L"$&EOF!@");
                         }
                 }
 
@@ -143,8 +148,8 @@ namespace lambda{
                 Lexer(std::wstring data,std::wstring filename){
                         fs.push(data, filename);
                 }
-                token_t lookNextTok(){
-                        auto tok = nextTok();
+                token_t lookNextTok(bool trim = true){
+                        auto tok = nextTok(trim);
                         cache_pos --;
                         return tok;
                 }
@@ -158,16 +163,20 @@ namespace lambda{
                 }
                 token_t lastTok(){
                         if(cache.empty())
-                                return token_t(Token::NONE,{0,0},L"ERROR");
+                                return token_t(Token::NONE,{0,0},L"@#ERROR!$");
                         return cache[cache_pos];
                 }
-                token_t nextTok(){
+                token_t nextTok(bool trim = true){
+                        if(failed)
+                                return token_t(Token::ERROR,{0,0},L"#ERROR#");
                         if(cache_pos < cache.size()){
                                 return cache[cache_pos++];
                         }
-                        cache_pos++;
-                        auto tok = _nextTok();
+                        auto tok = _nextTok(trim);
+                        if(failed)
+                                return token_t(Token::ERROR,{0,0},L"#ERROR#");
                         cache.push_back(tok);
+                        cache_pos++;
                         auto iter = keywords.find(tok.val);
                         if(iter == keywords.end()){
                                 tok.id = static_cast<uint16_t>(tok.tok);
