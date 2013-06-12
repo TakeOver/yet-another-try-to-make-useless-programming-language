@@ -173,6 +173,12 @@ namespace lambda{
                                 return token_t(Token::ERROR,{fs.line(),fs.position()},L"@#ERROR!$");
                         return cache[cache_pos-1];
                 }
+                std::wstring tokById(uint32_t id){
+                        auto iter= user_tokens_si.find(id);
+                        if(iter == user_tokens_si.end())
+                                return L"-NONE-";
+                        return iter->second;
+                }
                 token_t nextTok(bool trim = true){
                         if(failed)
                                 return token_t(Token::ERROR,{fs.line(),fs.position()},L"#ERROR#");
@@ -182,15 +188,14 @@ namespace lambda{
                         auto tok = _nextTok(trim);
                         if(failed)
                                 return token_t(Token::ERROR,tok.tokinfo,tok.val);
-                        cache.push_back(tok);
-                        cache_pos++;
                         auto iter = keywords.find(tok.val);
                         if(iter == keywords.end()){
                                 tok.id = static_cast<uint16_t>(tok.tok);
                         }else{
                                 tok.id = iter->second;
                         }
-                        DBG_TRACE("token: %d",tok.id);
+                        cache.push_back(tok);
+                        cache_pos++;
                         return tok;
                 }
                 uint32_t defToken(std::wstring name){

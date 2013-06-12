@@ -22,7 +22,7 @@ namespace lambda{
                 static ParseVal Token(std::wstring val){
                         return ParseVal(ParseValType::Token, val);
                 }
-                static ParseVal Expr(){
+                static ParseVal Expr() {
                         return ParseVal(ParseValType::Expression);
                 }
                 static ParseVal Stmt(){
@@ -45,50 +45,43 @@ namespace lambda{
                 ParsedVal(ParseVal pv): pv(pv),expr(nullptr){}
         };
         class Parser{
-                typedef  std::function<Statement*(std::vector<ParsedVal>&)> stmt_alloc;
-                typedef  std::function<Expression*(std::vector<ParsedVal>&)> expr_alloc;
-                std::unordered_map<uint32_t, uint32_t>  dispatch_by_token;
-                std::vector<bool> dispatch_types; // true - expression. false - stmt;
-                std::vector<stmt_alloc > stmt_allocators;
-                std::vector<expr_alloc > expr_allocators;
-                std::vector<std::vector<ParseVal>> movs;
+                typedef  std::function<Statement*(std::vector<ParsedVal>&)>     stmt_alloc;
+                typedef  std::function<Expression*(std::vector<ParsedVal>&)>    expr_alloc;
+                typedef  std::function<Statement*(Parser&,Lexer&)>              stmt_parser;
+                typedef  std::function<Expression*(Parser&,Lexer&)>             expr_parser;
+                std::unordered_map<uint32_t, uint32_t>                          dispatch_by_token;
+                std::vector<bool>                                               dispatch_types; // true - expression. false - stmt;
+                std::vector<stmt_alloc >                                        stmt_allocators;
+                std::vector<expr_alloc >                                        expr_allocators; 
+                std::vector<std::vector<ParseVal>>                              rules; 
+                std::vector<bool>                                               is_rule; // is rule or  user function .
+                std::vector<stmt_parser>                                        stmt_parsers;
+                std::vector<expr_parser>                                        expr_parsers;
+                
                 Lexer lex;
-                bool failed = false;
-                std::wstring error;
+                
+                bool            failed = false;
+                std::wstring    error;
+                
                 void HandleError(std::wstring msg, tok_info_t ti){
                         failed = true;
                         lex.HandleError(msg,ti);
                         error = lex.error;
                         DBG_TRACE();
                 }
+                
                 void ForceLexerError(){
                         failed = lex.failed;
                         error = lex.error;
                 }
-                Expression * expectExpression(bool move = true){
-                        ForceLexerError();
-                        if(failed)
-                                return nullptr;
-                        DBG_TRACE();
-                        auto tok = move?lex.nextTok():lex.lastTok();
-                        auto dp = dispatch(tok);
-                        if(!dp || dispatch_types[dp]==false){
-                                //TODO EXPR PARSING.
-                                return new Expression();
-                        }
-                        DBG_TRACE("dispatch:%d",dp);
-                        auto parsed = processRule(dp,tok);
-                        if(parsed.size()==0)
-                                return nullptr;
-                        return expression_factory(dp,parsed);
-                }
+                
                 uint32_t dispatch(token_t & tok){
-                        DBG_TRACE();
                         auto iter = dispatch_by_token.find(tok.id);
                         if(iter == dispatch_by_token.end())
                                 return 0;
                         return iter->second;
                 }
+                
                 static void finallize(std::vector<ParsedVal> vec){
                         for(auto&x:vec)
                                 if(x.pv.type == ParseValType::Expression)
@@ -96,9 +89,10 @@ namespace lambda{
                                 else if(x.pv.type == ParseValType::Statement)
                                         delete x.stmt;
                 }
+                
                 std::vector<ParsedVal> processRule(uint32_t dp, token_t & tok){                        
                         std::vector<ParsedVal> parsed;
-                        auto& rule = movs[dp];
+                        auto& rule = rules[dp];
                         parsed.push_back({rule.front()});
                         DBG_TRACE("rule:%d",dp);
                         for(std::vector<ParseVal>::iterator i = rule.begin()+1, e = rule.end(); i!=e;++i){
@@ -142,28 +136,19 @@ namespace lambda{
                         }
                         return parsed;
                 }
-                Statement* expectStatement(){
-                        ForceLexerError();
-                        if(failed)
-                                return nullptr;
-                        DBG_TRACE();
-                        auto tok = lex.nextTok();
-                        auto dp = dispatch(tok);
-                        if(!dp || dispatch_types[dp])
-                                return new Statement(expectExpression(false)); // hack. I know. ;)
-                        DBG_TRACE("dispatch:%d",dp);
-                        auto parsed = processRule(dp,tok);
-                        if(parsed.size()==0)
-                                return nullptr;
-                        return statement_factory(dp,parsed);
-                }
+                
                 Statement* statement_factory(uint32_t dp, std::vector<ParsedVal>& parsed){
                         return stmt_allocators[dp](parsed);
                 }
+                
                 Expression* expression_factory(uint32_t dp, std::vector<ParsedVal>& parsed){
                         return expr_allocators[dp](parsed);
                 }
+                
                 void defRule(ParseValType pvt, std::vector<ParseVal> rule){
+                        expr_parsers.push_back(nullptr);
+                        stmt_parsers.push_back(nullptr);
+                        is_rule.push_back(true);
                         if(rule.size()==0) // FIXME
                                 throw  std::string("Rule size  == 0");
                         if(rule.front().type!=ParseValType::Token)
@@ -174,44 +159,115 @@ namespace lambda{
                                 }
                         }
                         auto id = rule.front().token_id;
-                        dispatch_by_token[id] = movs.size();
-                        movs.push_back(rule);
+                        dispatch_by_token[id] = rules.size();
+                        rules.push_back(rule);
                 }
 
         public:
                 Parser(){
-                        movs.push_back({});
+                        rules.push_back({});
                         expr_allocators.push_back(nullptr);
                         stmt_allocators.push_back(nullptr);
+                        stmt_parsers.push_back(nullptr);
+                        expr_parsers.push_back(nullptr);
                         dispatch_types.push_back(false);
+                        is_rule.push_back(true);
                 }
+                
+                Statement* expectStatement(bool move = true){
+                        DBG_TRACE();
+                        ForceLexerError();
+                        if(failed)
+                                return nullptr;
+                        token_t tok (Token::NONE, {0,0},L"");
+                        if(move)
+                                tok = lex.nextTok();
+                        else 
+                                tok = lex.lastTok();
+                        auto dp = dispatch(tok);
+                        if(!dp || dispatch_types[dp])
+                                return new Statement(expectExpression(false)); // hack. I know. ;)
+                        if(!is_rule[dp])
+                                return stmt_parsers[dp](*this,lex);
+                        auto parsed = processRule(dp,tok);
+                        if(parsed.size()==0)
+                                return nullptr;
+                        return statement_factory(dp,parsed);
+                }
+                
+                Expression * expectExpression(bool move = true){
+                        DBG_TRACE();
+                        ForceLexerError();
+                        if(failed)
+                                return nullptr;
+                        auto tok = move?lex.nextTok():lex.lastTok();
+                        auto dp = dispatch(tok);
+                        if(!dp || dispatch_types[dp]==false){
+                                //TODO EXPR PARSING.
+                                return new Expression();
+                        }
+                        if(!is_rule[dp])
+                                return expr_parsers[dp](*this,lex);
+                        auto parsed = processRule(dp,tok);
+                        if(parsed.size()==0)
+                                return nullptr;
+                        return expression_factory(dp,parsed);
+                }
+                
                 void addData(std::wstring data, std::wstring file){
                         lex.addData(data,file);
                 }
+                
                 void Parse(){
                         delete expectExpression(); // lol. just testing.
                 }
+                
                 void showError(){
                         std::wcerr << L"error:" << error << std::endl;
                 }
+                
                 void defStmt(std::vector<ParseVal> rule,stmt_alloc alloc){
                         expr_allocators.push_back(nullptr);
                         stmt_allocators.push_back(alloc);
                         dispatch_types.push_back(false);
                         defRule(lambda::ParseValType::Statement, rule);
                 }
+                
                 void defExpr(std::vector<ParseVal> rule,expr_alloc alloc){
                         stmt_allocators.push_back(nullptr);
                         expr_allocators.push_back(alloc);
                         dispatch_types.push_back(true);
                         defRule(lambda::ParseValType::Expression, rule);
                 }
+                
+                void defExpr(ParseVal begin_tok,expr_parser allocator){
+                        assert(begin_tok.type == ParseValType::Token&& "defExpr User Function, begin_tok!=Token");
+                        is_rule.push_back(false);
+                        expr_parsers.push_back(allocator);
+                        stmt_parsers.push_back(nullptr);
+                        dispatch_by_token[lex.TryRecognize(begin_tok.val)] = rules.size(); // dirty hack; :C
+                        rules.push_back({});
+                }
+                
+                void defStmt(ParseVal begin_tok,stmt_parser allocator){
+                        assert(begin_tok.type == ParseValType::Token&& "defExpr User Function, begin_tok!=Token");
+                        is_rule.push_back(false);
+                        stmt_parsers.push_back(allocator);
+                        expr_parsers.push_back(nullptr);
+                        dispatch_by_token[lex.TryRecognize(begin_tok.val)] = rules.size();
+                        rules.push_back({});
+                }
+                
                 void showRules(){
                         for(auto&x:dispatch_by_token){
                                 std::wcerr << x.first << L'\t';
-                                for(auto&x:movs[x.second]){
+                                if(!is_rule[x.second]){
+                                        std::wcerr << lex.tokById(x.first) << L"\t user-spec. parser function\n";
+                                        continue;
+                                }
+                                for(auto&x:rules[x.second]){
                                         if(x.type == ParseValType::Token)
-                                                std::wcerr << x.val << L'\t';
+                                                std::wcerr << x.val << L"(" << x.token_id << L")\t";
                                         else if(x.type == ParseValType::Expression)
                                                 std::wcerr << L"$expression\t";
                                         else if(x.type == ParseValType::Statement)
