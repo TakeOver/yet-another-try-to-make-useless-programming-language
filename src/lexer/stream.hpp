@@ -18,7 +18,7 @@ namespace lambda{
                 std::vector< uint32_t > states;
 
         public:
-                void pop(){                       
+                inline void pop(){                       
                         lines.pop_back();
                         positions.pop_back();
                         data.pop_back();
@@ -36,22 +36,22 @@ namespace lambda{
                         return str;
 
                 }
-                std::wstring curfile(){
+                inline std::wstring curfile(){
                         return filenames.back();
                 }
-                std::wstring curline(){
+                inline std::wstring curline(){
                         return data.at(positions.back());
                 }
-                uint32_t line(){
+                inline uint32_t line(){
                         return lines.back();
                 }
-                uint32_t position(){
+                inline uint32_t position(){
                         return positions.back();
                 }
-                bool eof(){
+                inline bool eof(){
                         return positions.size() == 1;
                 }
-                bool eos(){
+                inline bool eos(){
                         return data.back().size()<= positions.back();
                 }
                 wchar_t curChar(bool allow_change = true){
@@ -64,20 +64,20 @@ namespace lambda{
                                 return '\0';
                         return data.back()[positions.back()];
                 }
-                static bool is_dig(wchar_t wc){
+                inline static bool is_dig(wchar_t wc){
                         return (wc>=L'0' && wc<=L'9');
                 } 
-                static bool is_letter(wchar_t wc){
+                inline static bool is_letter(wchar_t wc){
                         return (wc>=L'a' && wc<=L'z')
                         ||(wc>=L'A' && wc<=L'Z')
                         ||(wc>=L'а' && wc<=L'я')
                         ||(wc>=L'А' && wc<=L'я') 
                         || wc == L'_' || wc == L'`';
                 } 
-                static bool is_whitespace(wchar_t wc){
+                inline static bool is_whitespace(wchar_t wc){
                         return wc == L' ' || wc == L'\t' || wc == L'\r' || wc == L'\n';
                 }
-                void retChars(uint32_t num){
+                inline void retChars(uint32_t num){
                         positions.back()-=num;
                 }
                 Token recognizeToken(bool allow_change = true){

@@ -34,10 +34,25 @@ int main(int argc, char const *argv[])
                 }
                 return new Statement();
         });
+        using i = ParseVal;
+        par.defExpr({
+                i::Token(L"\\"),
+                i::Ident(),
+                i::Token(L"->"),
+                i::Expr()
+        },  [](std::vector<ParsedVal>&){std::wcerr << L"alloc lambda\n"; return new Expression();});
         par.showRules();
-        par.addData(L"if 0 then \nwhen 0 \n{\nlet a = 0\n let b = 10 }\n else 1",
+        par.addData(L"\\ x -> \
+                        \\ y -> \
+                                if x then\
+                                        {\
+                                                when y \
+                                                        let x = y\
+                                                let y = x\
+                                        }\
+                                else x",
                 L"test");
         par.Parse();
-        par.showError(); //if error is empty then all is ok.
+        par.showError(); //if error is empty then all is ok.(or possible all is wrong but error output is empty)
         return 0;
 }

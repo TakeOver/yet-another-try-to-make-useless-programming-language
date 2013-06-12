@@ -15,20 +15,20 @@ namespace lambda{
         };
         struct ParseVal{
                 ParseValType type;
-                uint16_t token_id;
+                uint16_t token_id = 0;
                 std::wstring val;
                 ParseVal(ParseValType t, std::wstring val): type(t), val(val){}
                 ParseVal(ParseValType t):type(t){}
-                static ParseVal Token(std::wstring val){
+                inline static ParseVal Token(std::wstring val){
                         return ParseVal(ParseValType::Token, val);
                 }
-                static ParseVal Expr() {
+                inline static ParseVal Expr() {
                         return ParseVal(ParseValType::Expression);
                 }
-                static ParseVal Stmt(){
+                inline static ParseVal Stmt(){
                         return ParseVal(ParseValType::Statement);
                 }
-                static ParseVal Ident(){
+                inline static ParseVal Ident(){
                         return ParseVal(ParseValType::Identifer);
                 }
 
@@ -63,26 +63,26 @@ namespace lambda{
                 bool            failed = false;
                 std::wstring    error;
                 
-                void HandleError(std::wstring msg, tok_info_t ti){
+                inline void HandleError(std::wstring msg, tok_info_t ti){
                         failed = true;
                         lex.HandleError(msg,ti);
                         error = lex.error;
                         DBG_TRACE();
                 }
                 
-                void ForceLexerError(){
+                inline void ForceLexerError(){
                         failed = lex.failed;
                         error = lex.error;
                 }
                 
-                uint32_t dispatch(token_t & tok){
+                inline uint32_t dispatch(token_t & tok){
                         auto iter = dispatch_by_token.find(tok.id);
                         if(iter == dispatch_by_token.end())
                                 return 0;
                         return iter->second;
                 }
                 
-                static void finallize(std::vector<ParsedVal> vec){
+                static inline void finallize(std::vector<ParsedVal> vec){
                         for(auto&x:vec)
                                 if(x.pv.type == ParseValType::Expression)
                                         delete x.expr;
@@ -137,15 +137,15 @@ namespace lambda{
                         return parsed;
                 }
                 
-                Statement* statement_factory(uint32_t dp, std::vector<ParsedVal>& parsed){
+                inline Statement* statement_factory(uint32_t dp, std::vector<ParsedVal>& parsed){
                         return stmt_allocators[dp](parsed);
                 }
                 
-                Expression* expression_factory(uint32_t dp, std::vector<ParsedVal>& parsed){
+                inline Expression* expression_factory(uint32_t dp, std::vector<ParsedVal>& parsed){
                         return expr_allocators[dp](parsed);
                 }
                 
-                void defRule(ParseValType pvt, std::vector<ParseVal> rule){
+                inline void defRule(ParseValType pvt, std::vector<ParseVal> rule){
                         expr_parsers.push_back(nullptr);
                         stmt_parsers.push_back(nullptr);
                         is_rule.push_back(true);
@@ -179,11 +179,7 @@ namespace lambda{
                         ForceLexerError();
                         if(failed)
                                 return nullptr;
-                        token_t tok (Token::NONE, {0,0},L"");
-                        if(move)
-                                tok = lex.nextTok();
-                        else 
-                                tok = lex.lastTok();
+                        auto tok = move?lex.nextTok():lex.lastTok();
                         auto dp = dispatch(tok);
                         if(!dp || dispatch_types[dp])
                                 return new Statement(expectExpression(false)); // hack. I know. ;)
@@ -204,6 +200,7 @@ namespace lambda{
                         auto dp = dispatch(tok);
                         if(!dp || dispatch_types[dp]==false){
                                 //TODO EXPR PARSING.
+                                DBG_TRACE("failed dispatch %d %d",dp,(int)dispatch_types[dp]);
                                 return new Expression();
                         }
                         if(!is_rule[dp])
@@ -214,7 +211,7 @@ namespace lambda{
                         return expression_factory(dp,parsed);
                 }
                 
-                void addData(std::wstring data, std::wstring file){
+                inline void addData(std::wstring data, std::wstring file){
                         lex.addData(data,file);
                 }
                 
@@ -222,7 +219,7 @@ namespace lambda{
                         delete expectExpression(); // lol. just testing.
                 }
                 
-                void showError(){
+                inline void showError(){
                         std::wcerr << L"error:" << error << std::endl;
                 }
                 
@@ -246,6 +243,9 @@ namespace lambda{
                         expr_parsers.push_back(allocator);
                         stmt_parsers.push_back(nullptr);
                         dispatch_by_token[lex.TryRecognize(begin_tok.val)] = rules.size(); // dirty hack; :C
+                        dispatch_types.push_back(true);
+                        stmt_allocators.push_back(nullptr);
+                        expr_allocators.push_back(nullptr);
                         rules.push_back({});
                 }
                 
@@ -254,13 +254,16 @@ namespace lambda{
                         is_rule.push_back(false);
                         stmt_parsers.push_back(allocator);
                         expr_parsers.push_back(nullptr);
+                        stmt_allocators.push_back(nullptr);
+                        expr_allocators.push_back(nullptr);
+                        dispatch_types.push_back(false);
                         dispatch_by_token[lex.TryRecognize(begin_tok.val)] = rules.size();
                         rules.push_back({});
                 }
                 
                 void showRules(){
                         for(auto&x:dispatch_by_token){
-                                std::wcerr << x.first << L'\t';
+                                std::wcerr << L"is_expr:" << (dispatch_types[x.second]?L"true\t":L"false\t") << x.first << L'\t';
                                 if(!is_rule[x.second]){
                                         std::wcerr << lex.tokById(x.first) << L"\t user-spec. parser function\n";
                                         continue;

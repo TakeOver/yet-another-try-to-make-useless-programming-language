@@ -11,13 +11,13 @@ namespace lambda{
         class Parser;
         class Lexer{
 
-                std::unordered_map<std::wstring, uint32_t> keywords;
+                std::unordered_map<std::wstring, uint32_t>      keywords;
 
                 mutable uint16_t last_tok_id = static_cast<uint16_t>(Token::__END_OF_TOKENS);
                 mutable uint16_t last_user_tok_id = last_tok_id;
                 
-                std::unordered_map<uint32_t, std::wstring> user_tokens_si;
-                std::unordered_map<std::wstring,uint32_t> user_tokens_is;
+                std::unordered_map<uint32_t, std::wstring>      user_tokens_si;
+                std::unordered_map<std::wstring,uint32_t>       user_tokens_is;
 
                 mutable uint16_t max_kwd_length = 0;
 
@@ -30,10 +30,12 @@ namespace lambda{
                 bool failed = false;
                 std::wstring error;
 
-                static constexpr auto is_dig = FileStream::is_dig;
-                static constexpr auto is_letter = FileStream::is_letter;
-                static constexpr auto is_whitespace = FileStream::is_whitespace;
+                static constexpr auto is_dig =          FileStream::is_dig;
+                static constexpr auto is_letter =       FileStream::is_letter;
+                static constexpr auto is_whitespace =   FileStream::is_whitespace;
+                
                 friend Parser;
+
                 void HandleError(std::wstring msg, tok_info_t ti){
                         std::wstring ws = L"Syntax error: "+msg + L" at line:" + std::to_wstring(ti.line) + L" in file:" + fs.curfile() + L"\n";
                         ws += fs.datastring(ti.pos) + L"\n";
@@ -130,7 +132,7 @@ namespace lambda{
                         }
 
                 }
-                token_t _nextTok(bool trim = true){
+                inline token_t _nextTok(bool trim = true){
                         if(trim){
                                 TrimWhiteSpaceAndComments();
                         }
@@ -145,30 +147,30 @@ namespace lambda{
                 }
 
         public: 
-                std::wstring getError(){
+                inline std::wstring getError(){
                         return error;
                 }
-                void addData(std::wstring data, std::wstring file){
+                inline void addData(std::wstring data, std::wstring file){
                         fs.push(data, file);
                 }
                 Lexer(){}
                 Lexer(std::wstring data,std::wstring filename){
                         fs.push(data, filename);
                 }
-                token_t lookNextTok(bool trim = true){
+                inline token_t lookNextTok(bool trim = true){
                         auto tok = nextTok(trim);
-                        cache_pos --;
+                        --cache_pos;
                         return tok;
                 }
-                void decCachePos(){
-                        cache_pos--;
+                inline void decCachePos(){
+                        --cache_pos;
                 }
-                token_t lookTokens(uint32_t num){
+                inline token_t lookTokens(uint32_t num){
                         while(num--)
                                 nextTok();
                         return lastTok();
                 }
-                token_t lastTok(){
+                inline token_t lastTok(){
                         if(cache.empty())
                                 return token_t(Token::ERROR,{fs.line(),fs.position()},L"@#ERROR!$");
                         return cache[cache_pos-1];
