@@ -10,7 +10,8 @@ namespace lambda{
         enum class ParseValType{
                 Token = 0,
                 Expression,
-                Statement
+                Statement,
+                Identifer
         };
         struct ParseVal{
                 ParseValType type;
@@ -26,6 +27,9 @@ namespace lambda{
                 }
                 static ParseVal Stmt(){
                         return ParseVal(ParseValType::Statement);
+                }
+                static ParseVal Ident(){
+                        return ParseVal(ParseValType::Identifer);
                 }
 
         };
@@ -57,7 +61,14 @@ namespace lambda{
                         error = lex.error;
                         DBG_TRACE();
                 }
+                void ForceLexerError(){
+                        failed = lex.failed;
+                        error = lex.error;
+                }
                 Expression * expectExpression(bool move = true){
+                        ForceLexerError();
+                        if(failed)
+                                return nullptr;
                         DBG_TRACE();
                         auto tok = move?lex.nextTok():lex.lastTok();
                         auto dp = dispatch(tok);
@@ -93,9 +104,19 @@ namespace lambda{
                         for(std::vector<ParseVal>::iterator i = rule.begin()+1, e = rule.end(); i!=e;++i){
                                 DBG_TRACE("%d %d",i->type, i->token_id);
                                 if(i->type == ParseValType::Token){
-                                        auto tok = lex.nextTok();
-                                        if(tok.id != i->token_id){
-                                                HandleError(L"Expected: " + i->val + L", found:"+ tok.val, tok.tokinfo);
+                                        auto token = lex.nextTok();
+                                        if(token.id != i->token_id){
+                                                HandleError(L"Expected: " + i->val + L", found:"+ token.val, token.tokinfo);
+                                                finallize(parsed);
+                                                return std::vector<ParsedVal>();
+                                        }
+                                        parsed.push_back(ParsedVal(*i));
+                                        continue;
+                                }
+                                if(i->type == ParseValType::Identifer){
+                                        auto id = lex.nextTok();
+                                        if(id.tok!=Token::IDENTIFER && id.id!=static_cast<int>(id.tok)){
+                                                HandleError(L"Identifer expected, found:" + id.val,id.tokinfo);
                                                 finallize(parsed);
                                                 return std::vector<ParsedVal>();
                                         }
@@ -122,6 +143,9 @@ namespace lambda{
                         return parsed;
                 }
                 Statement* expectStatement(){
+                        ForceLexerError();
+                        if(failed)
+                                return nullptr;
                         DBG_TRACE();
                         auto tok = lex.nextTok();
                         auto dp = dispatch(tok);
@@ -190,8 +214,10 @@ namespace lambda{
                                                 std::wcerr << x.val << L'\t';
                                         else if(x.type == ParseValType::Expression)
                                                 std::wcerr << L"$expression\t";
-                                        else
+                                        else if(x.type == ParseValType::Statement)
                                                 std::wcerr << L"#statement\t";
+                                        else
+                                                std::wcerr << L"%identifer\t";
                                 } 
                                 std::wcerr << std::endl;
                         }

@@ -94,7 +94,6 @@ namespace lambda{
                                 return Token::CHAR;
                         if(wc == L'\0')
                                 return Token::NONE;
-            //            assert(!is_whitespace(wc) && "control white space. stream.hpp");
                         return Token::OPERATOR;
 
                 }

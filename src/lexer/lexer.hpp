@@ -98,7 +98,7 @@ namespace lambda{
                 token_t getOperator(){
                         std::wstring val, matched = L"";
                         tok_info_t ti ( fs.line(),fs.position());
-                        auto const nt = Token::OPERATOR;
+                        auto nt = Token::OPERATOR;
                         wchar_t wc;
                         uint32_t lim = max_kwd_length;
                         while(!fs.eos() && (fs.recognizeToken() == nt) && lim){
@@ -114,6 +114,7 @@ namespace lambda{
                         if(matched.size() == 0){
                                 std::wstring tmp; tmp =fs.curChar();
                                 HandleError(std::wstring(L"Unrecognized symbol:\'") + (tmp) + std::wstring(L"\'"), ti);
+                                nt = Token::ERROR;
                         }
                         return token_t(nt,ti,matched);
                 }
@@ -139,7 +140,7 @@ namespace lambda{
                                 case Token::CHAR:       return getChar();
                                 case Token::IDENTIFER:  return getIdent();
                                 case Token::OPERATOR:   return getOperator();
-                                default:                return token_t(Token::NONE,{0,0},L"$&EOF!@");
+                                default:                return token_t(Token::NONE,{fs.line(),fs.position()},L"$&EOF!@");
                         }
                 }
 
@@ -169,18 +170,18 @@ namespace lambda{
                 }
                 token_t lastTok(){
                         if(cache.empty())
-                                return token_t(Token::NONE,{0,0},L"@#ERROR!$");
+                                return token_t(Token::ERROR,{fs.line(),fs.position()},L"@#ERROR!$");
                         return cache[cache_pos-1];
                 }
                 token_t nextTok(bool trim = true){
                         if(failed)
-                                return token_t(Token::ERROR,{0,0},L"#ERROR#");
+                                return token_t(Token::ERROR,{fs.line(),fs.position()},L"#ERROR#");
                         if(cache_pos < cache.size()){
                                 return cache[cache_pos++];
                         }
                         auto tok = _nextTok(trim);
                         if(failed)
-                                return token_t(Token::ERROR,{0,0},L"#ERROR#");
+                                return token_t(Token::ERROR,tok.tokinfo,tok.val);
                         cache.push_back(tok);
                         cache_pos++;
                         auto iter = keywords.find(tok.val);
