@@ -170,7 +170,7 @@ namespace lambda{
                 token_t lastTok(){
                         if(cache.empty())
                                 return token_t(Token::NONE,{0,0},L"@#ERROR!$");
-                        return cache[cache_pos];
+                        return cache[cache_pos-1];
                 }
                 token_t nextTok(bool trim = true){
                         if(failed)

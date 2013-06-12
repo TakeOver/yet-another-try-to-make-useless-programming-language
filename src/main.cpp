@@ -18,15 +18,21 @@ int main(int argc, char const *argv[])
         std::wcout << lex->nextTok().val << std::endl;
         DBG_TRACE("%s %d", "test",10);
         Parser par;
-        par.defRule({
-                        ParseVal::defToken(L"if"), 
-                                ParseVal::Expr(), 
-                        ParseVal::defToken(L"then"), 
-                                ParseVal::Expr(),
-                        ParseVal::defToken(L"else"),
-                                ParseVal::Expr()});
+        par.defExpr({
+                ParseVal::Token(L"if"), 
+                        ParseVal::Expr(), 
+                ParseVal::Token(L"then"), 
+                        ParseVal::Stmt(),
+                ParseVal::Token(L"else"),
+                        ParseVal::Expr()
+        }, [](std::vector<ParsedVal>&){std::wcerr<<L"alloc if then else\n";return new Expression();});
+        par.defStmt({
+                ParseVal::Token(L"when"),
+                        ParseVal::Expr(),
+                        ParseVal::Expr()      
+        }, [](std::vector<ParsedVal>&){std::wcerr<<L"alloc when\n";return new Statement();});
         par.showRules();
-        par.addData(L"if 0 then  1 else 1",L"test");
+        par.addData(L"if 0 then when 0 1 else 1",L"test");
         par.Parse();
         par.showError(); //if error is empty then all is ok.
         return 0;
