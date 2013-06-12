@@ -2,6 +2,8 @@
 #include "lexer/lexer.hpp"
 #include <iostream>
 #include "utils/json.hpp"
+#define DEBUG
+#include "utils/debug.hpp"
 using namespace lambda;
 int main(int argc, char const *argv[])
 {
@@ -37,5 +39,6 @@ int main(int argc, char const *argv[])
         jw.write2File("jsonnew.json");
         JsonWriter jw1(jr.getPtree());
         jw1.write2File("newjson.json");
+        DBG_TRACE("%s %d", "test",10);
         return 0;
 }

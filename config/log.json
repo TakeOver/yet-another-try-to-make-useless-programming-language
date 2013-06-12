@@ -1,0 +1,11 @@
+{
+        "dir": "/",
+        "file_exceptions":"exceptions.json",
+        "file_compile":"compile_err.json",
+        "file_runtime": "runtime_err.json",
+        "file_results": "results.json",
+        "enable":true,
+        "log_level":1,
+        "debug_enable":true,
+        "file_debug":"debug.json"
+}
