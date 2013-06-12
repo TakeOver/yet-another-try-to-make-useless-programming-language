@@ -6,7 +6,9 @@
 #include "token.hpp"
 #include "stream.hpp"
 #include <functional>
+#include "../utils/debug.hpp"
 namespace lambda{
+        class Parser;
         class Lexer{
 
                 std::unordered_map<std::wstring, uint32_t> keywords;
@@ -31,7 +33,7 @@ namespace lambda{
                 static constexpr auto is_dig = FileStream::is_dig;
                 static constexpr auto is_letter = FileStream::is_letter;
                 static constexpr auto is_whitespace = FileStream::is_whitespace;
-                
+                friend Parser;
                 void HandleError(std::wstring msg, tok_info_t ti){
                         std::wstring ws = L"Syntax error: "+msg + L" at line:" + std::to_wstring(ti.line) + L" in file:" + fs.curfile() + L"\n";
                         ws += fs.datastring(ti.pos) + L"\n";
@@ -145,6 +147,10 @@ namespace lambda{
                 std::wstring getError(){
                         return error;
                 }
+                void addData(std::wstring data, std::wstring file){
+                        fs.push(data, file);
+                }
+                Lexer(){}
                 Lexer(std::wstring data,std::wstring filename){
                         fs.push(data, filename);
                 }
@@ -183,6 +189,7 @@ namespace lambda{
                         }else{
                                 tok.id = iter->second;
                         }
+                        DBG_TRACE("token: %d",tok.id);
                         return tok;
                 }
                 uint32_t defToken(std::wstring name){
@@ -191,6 +198,12 @@ namespace lambda{
                         keywords[name] = last_user_tok_id;
                         max_kwd_length = std::max((uint32_t)max_kwd_length,(uint32_t)name.length());
                         return last_user_tok_id++;
+                }
+                uint32_t TryRecognize(std::wstring name){
+                        auto iter = keywords.find(name);
+                        if(iter != keywords.end())
+                                return iter->second;
+                        return defToken(name);
                 }
 
 
