@@ -16,7 +16,7 @@ int main(int argc, char const *argv[])
                         i::Token(L"then"),i::Stmt(),
                         i::Token(L"else"),i::Expr()
                 }, 
-                [](std::vector<ParsedVal>&){
+                [](Parser::ParseInfo&){
                         std::wcerr<<L"alloc if then else\n";
                         return new Expression();
                 }
@@ -27,7 +27,7 @@ int main(int argc, char const *argv[])
         par.defStmt({
                         i::Token(L"when"),i::Expr(),i::Stmt()      
                 }, 
-                [](std::vector<ParsedVal>&){
+                [](Parser::ParseInfo&){
                         std::wcerr<<L"alloc when\n";
                         return new Statement();
                 }
@@ -37,7 +37,7 @@ int main(int argc, char const *argv[])
         par.defStmt({   
                         i::Token(L"let"),i::Ident(), i::Token(L"="), i::Expr()
                 }, 
-                [](std::vector<ParsedVal>&){
+                [](Parser::ParseInfo&){
                         std::wcerr << L"alloc let\n"; 
                         return new Statement();
                 }
@@ -60,7 +60,7 @@ int main(int argc, char const *argv[])
         par.defExpr({
                         i::Token(L"\\"),i::Ident(),i::Token(L"->"),i::Expr()
                 },  
-                [](std::vector<ParsedVal>&){
+                [](Parser::ParseInfo&){
                         std::wcerr << L"alloc h.lambda\n"; 
                         return new Expression();
                 }
@@ -70,7 +70,7 @@ int main(int argc, char const *argv[])
         par.defExpr({
                         i::Token(L"λ"),i::Ident(),i::Token(L"."),i::Expr()
                 },  
-                [](std::vector<ParsedVal>&){
+                [](Parser::ParseInfo&){
                         std::wcerr << L"alloc m.lambda\n"; 
                         return new Expression();
                 }
@@ -94,5 +94,51 @@ int main(int argc, char const *argv[])
 
         par.showError(); //if error is empty then all is ok.(or possible all is wrong but error output is empty)
 
+        // i'll add value-blocks later. so '{...}' would be <expression> too.
+
+        // <if> ::= 'if' <expression> '{' <expression> '}' 'else' '{' <expression> '}'
+        par.defExpr({
+                i::Token(L"if"), i::Expr(),
+                        i::Token(L"{"), i::Expr(), i::Token(L"}"),
+                i::Token(L"else"),
+                        i::Token(L"{"), i::Expr(), i::Token(L"}")
+        }, 
+                [](Parser::ParseInfo & info ){
+                        return new Expression();         
+                }
+        );
+        // <when> ::= 'when' <expression> '{' <statement> '}' 
+        par.defStmt({
+                i::Token(L"when"), i::Expr(),
+                        i::Token(L"{"), i::Stmt(), i::Token(L"}")
+        }, 
+                [](Parser::ParseInfo & info ){
+                        return new Statement();         
+                }
+        );
+        // like <when>, but condition must be false.
+        // <unless> ::= 'when' <expression> '{' <statement> '}' 
+        par.defStmt({
+                i::Token(L"unless"), i::Expr(),
+                        i::Token(L"{"), i::Stmt(), i::Token(L"}")
+        }, 
+                [](Parser::ParseInfo & info ){
+                        return new Statement();         
+                }
+        );
+
+        // new syntax :)
+        par.defStmt(defSyntax(L"let",Syntax::id,L"=",Syntax::expr),
+                [](Parser::ParseInfo&){
+                        return new Statement();
+                }
+        );
+        // now looks like BNF 
+        using namespace Syntax;
+        par.defStmt(defSyntax(L"def",id,L"=",expr),
+                [](Parser::ParseInfo&){
+                        return new Statement();
+                }
+        );
         return 0;
 }

@@ -14,11 +14,14 @@ namespace lambda{
                 Identifer
         };
         struct ParseVal{
+                
                 ParseValType type;
                 uint16_t token_id = 0;
                 std::wstring val;
+
                 ParseVal(ParseValType t, std::wstring val): type(t), val(val){}
                 ParseVal(ParseValType t):type(t){}
+
                 inline static ParseVal Token(std::wstring val){
                         return ParseVal(ParseValType::Token, val);
                 }
@@ -164,6 +167,7 @@ namespace lambda{
                 }
 
         public:
+                typedef std::vector<ParsedVal> ParseInfo;
                 Parser(){
                         rules.push_back({});
                         expr_allocators.push_back(nullptr);
@@ -282,4 +286,36 @@ namespace lambda{
                         }
                 }
         };
+        // i like c++ template magic, so this can simplify way of def syntax rules.
+        //this 3 structs is used only in templates matching(like functional pattern matching)
+        // wstring      => Token
+        // id           => Ident
+        // expr         => Expr
+        // stmt         => Stmt
+        // typeof{Token,Ident,Expr,Stmt} = ParseVal
+        // compiler should inline all this functions, no overhead :)
+        namespace Syntax{
+                struct _SYNTAX_IDENTIFER_{};
+                struct _SYNTAX_EXPRESSION{};
+                struct _SYNTAX_STATEMENT{};
+                _SYNTAX_IDENTIFER_              id;
+                _SYNTAX_EXPRESSION              expr;
+                _SYNTAX_STATEMENT               stmt;
+
+                inline ParseVal match(std::wstring s){
+                        return ParseVal::Token(s);
+                }
+                inline ParseVal match(_SYNTAX_IDENTIFER_){
+                        return ParseVal::Ident();
+                }
+                inline ParseVal match(_SYNTAX_EXPRESSION){
+                        return ParseVal::Expr();
+                }
+                inline ParseVal match(_SYNTAX_STATEMENT){
+                        return ParseVal::Stmt();
+                }
+        }
+        template<typename ... Rest>  inline std::vector<ParseVal> defSyntax(Rest ... rest){
+                return std::vector<ParseVal> {Syntax::match(rest)...};
+        }
 }
