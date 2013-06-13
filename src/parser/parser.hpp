@@ -321,29 +321,29 @@ namespace lambda{
                         return tmp;
                 }
                 void _show_rule(uint32_t id, uint32_t tok){                        
-                                std::wcerr << L"is_expr:" << (dispatch_types[id]?L"true\t":L"false\t") << tok << L'\t';
+                                std::wcerr << (dispatch_types[id]?L"[expr] ":L"[stmt] ") << tok << L' ';
                                 if(!is_rule[id]){
-                                        std::wcerr << lex.tokById(tok) << L"\t user-spec. parser function\n";
+                                        std::wcerr << lex.tokById(tok) <<L"(" << tok << L")" << L" <function>\n";
                                         return;
                                 }
                                 for(auto&x:rules[id]){
                                         if(x.type == ParseValType::Token){
-                                                std::wcerr << x.val << L"(" << x.token_id << L")\t";
+                                                std::wcerr << x.val << L"(" << x.token_id << L") ";
                                         }else if(x.type == ParseValType::Expression){
-                                                std::wcerr << L"$expression\t";
+                                                std::wcerr << L"$expr ";
                                         }else if(x.type == ParseValType::Statement){
-                                                std::wcerr << L"#statement\t";
+                                                std::wcerr << L"#stmt ";
                                         }else if(x.type == ParseValType::Rule){
-                                                std::wcerr << L"@rule<\t";
+                                                std::wcerr << L"@rule< ";
                                                 if(x.rule_id == id){
-                                                        std::wcerr << L"self-recursive\t";
+                                                        std::wcerr << L"self! ";
                                                 }
                                                 else{
-                                                        _show_rule(x.rule_id, x.token_id);
+                                                        _show_rule(x.rule_id, rules[x.rule_id].front().token_id);
                                                 }
-                                                std::wcerr << L">\t";
+                                                std::wcerr << L"> ";
                                         }else{                                                
-                                                std::wcerr << L"%identifer\t";
+                                                std::wcerr << L"%id ";
                                         }
                                 } 
                 }
