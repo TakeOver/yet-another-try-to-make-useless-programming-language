@@ -16,7 +16,7 @@ namespace lambda{
                 String,
                 Operator,
                 Number,
-                // this rule-terms would be wery simple, but it can help me to reduce amount of <function> rules.
+                // this rule-terms would be very simple, but it can help me to reduce amount of <function> rules.
                 InfStatements // inf statements would be holded is paw c-ptr and terminated by nullptr. (like askiiz str)
               //  ,
                // InfExpressions,
