@@ -107,7 +107,18 @@ int main(int argc, char const *argv[])
         // def f x y = x*y // => produces: let x = \x -> \y -> x*y
         par.showRules();
 
-        par.addData(L"for let i = 1 to 10 do { when a { unless a {let c = 10.1} } def f x y = 10  macro `def [\"def\"f i \"=\" expr ] = let f = \\ i -> expr }", L"test");
+        par.addData(L"  for let i = 1 to 10 do {                                \
+                                when a {                                        \
+                                        unless a {                              \
+                                                let c = 10.10                   \
+                                        }                                       \
+                                }                                               \
+                                def f x y = 10                                  \
+                                macro `def [ \"def\" f `i \"=\" expr ] =        \
+                                let f = \\ i -> expr                            \
+                        }"
+
+                , L"test");
         
         par.Parse();
         
