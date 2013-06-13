@@ -11,6 +11,14 @@ int main(int argc, char const *argv[])
 
         using namespace Syntax;
 
+        // <block> ::= '{' <statement>* '}'
+        auto block = par.defStmt(L"block",
+                defSyntax(
+                        (L"{"),infstmts, (L"}")
+                ),
+                [](Parser::ParseInfo&){std::wcerr << L"block alloc\n"; return new Statement();}
+        );
+        // ParsedInfo.size == Syntax.size. so, ParsedInfo[x].pv == Rule[x], if Rule[x] <: <expression> or <statement> then ParsedInfo[x].expr or ParsedInfo[x].stmt != nullptr. And if you want to extract data from ParsedInfo for your AST node - feel free.
         // <if> ::= 'if' <expression> '{' <expression> '}' 'else' '{' <expression> '}'
         par.defExpr(L"if-then-else",
                 defSyntax(
@@ -26,8 +34,7 @@ int main(int argc, char const *argv[])
         // <when> ::= 'when' <expression> '{' <statement> '}' 
         par.defStmt(L"when",
                 defSyntax(
-                        (L"when"), expr,
-                                (L"{"), stmt, (L"}")
+                        (L"when"), expr,block
                 ), 
                 [](Parser::ParseInfo & info ){
                         std::wcerr << L"when alloc\n";
@@ -38,10 +45,10 @@ int main(int argc, char const *argv[])
         // <unless> ::= 'when' <expression> '{' <statement> '}' 
         par.defStmt(L"unless",
                 defSyntax(
-                        (L"unless"), expr,
-                                (L"{"), stmt, (L"}")
+                        (L"unless"), expr,block
                 ), 
                 [](Parser::ParseInfo & info ){
+                        std::wcerr << L"unless alloc\n";
                         return new Statement();         
                 }
         );
@@ -49,34 +56,35 @@ int main(int argc, char const *argv[])
         // new syntax :)
         // <let> ::= 'let' <identifer> '=' <expression>
         auto let = par.defStmt(L"let",
-                defSyntax(L"let",id,L"=",expr),
+                defSyntax(
+                        (L"let"),id,(L"="),expr
+                ),
                 [](Parser::ParseInfo&){
                         std::wcerr << L"let alloc\n";
                         return new Statement();
                 }
         );
-        // now looks like BNF 
+
         // <def> ::= 'def' <identifer> '=' <expression>
         par.defStmt(L"def",
-                defSyntax(L"def",id,L"=",expr),
+                defSyntax(
+                        (L"def"),id,(L"="),expr
+                ),
                 [](Parser::ParseInfo&){
                         return new Statement();
                 }
         );
-        // <block> ::= '{' <statement>* '}'
-        par.defStmt(L"block",ParseVal::Token(L"{"), [](Parser& par,Lexer& lex){
-                auto end = lex.TryRecognize(L"}");
-                while(lex.nextTok().id!=end){
-                        par.expectStatement();
-                }
-                std::wcerr << L"block alloc\n";
-                return new Statement();
-        });
+
         // <for> ::= 'for' <let> ('let' <identifer> '=' <expression>) 'to' <expression> 'do' <statement>
-        par.defStmt(L"for", defSyntax(L"for",let,L"to",expr,L"do",stmt),
+        par.defStmt(L"for", 
+                defSyntax(
+                        (L"for"),let,(L"to"),expr,(L"do"),block
+                ),
                 [](Parser::ParseInfo&){std::wcerr<<L"for alloc\n";return new Statement();});
-        par.addData(L"for let i = 1 to 10 do { when a b let c = 10 }", L"test");
+
+        par.addData(L"for let i = 1 to 10 do { when a { unless a {let c = 10.1} } let c = 10 }", L"test");
         par.Parse();
+        
         par.showRules();
         par.showError();
         return 0;
