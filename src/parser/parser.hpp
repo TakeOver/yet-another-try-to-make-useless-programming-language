@@ -15,7 +15,8 @@ namespace lambda{
                 Rule,
                 String,
                 Operator,
-                Number
+                Number,
+                Term
         };
         struct ParseVal{
                 
@@ -55,6 +56,9 @@ namespace lambda{
                 }
                 inline static ParseVal Num(){
                         return ParseVal(ParseValType::Number);
+                }
+                inline static ParseVal Term(){
+                        return ParseVal(ParseValType::Term);
                 }
 
         };
@@ -350,6 +354,26 @@ namespace lambda{
                                         parsed.push_back({*i, ids});
                                         continue;
                                 }
+                                if(i->type == ParseValType::Term){                                        
+                                        bool const any = i->any;
+                                        std::vector<token_t> ids;
+                                        while(true){
+                                                auto id = lex.nextTok();
+                                                if(id.tok!=Token::NUM && id.tok!=Token::STRING && static_cast<Token>(id.id)!=Token::OPERATOR  && (id.tok!=Token::IDENTIFER || static_cast<uint32_t>(id.tok) != id.id)){
+                                                        lex.decCachePos();
+                                                        break;
+                                                }
+                                                ids.push_back(id);
+                                        
+                                        }
+                                        if(!any && !ids.size()){
+                                                HandleError(L"Term expected, found:" + lex.lookNextTok().val,lex.lookNextTok().tokinfo);
+                                                finallize(parsed);
+                                                return std::vector<ParsedVal>();
+                                        }
+                                        parsed.push_back({*i, ids});
+                                        continue;
+                                }
                                 if(i->type == ParseValType::Statement){
                                         DBG_TRACE("parsing statements*");
                                         std::vector<Statement*> st;
@@ -573,6 +597,7 @@ namespace lambda{
                 struct _SYNTAX_STATEMENT{};
                 struct _SYNTAX_STRING{};
                 struct _SYNTAX_OPERATOR{};
+                struct _SYNTAX_TERM{};
                 struct _SYNTAX_NUMBER{};
                 template<typename T> struct _SYNTAX_ANY{};
                 _SYNTAX_IDENTIFER_              id;
@@ -581,6 +606,7 @@ namespace lambda{
                 _SYNTAX_STRING                  str;
                 _SYNTAX_OPERATOR                oper;
                 _SYNTAX_NUMBER                  num;
+                _SYNTAX_TERM                    term;
 
                 inline ParseVal match(std::wstring s){
                         return ParseVal::Token(s);
@@ -605,6 +631,9 @@ namespace lambda{
                 }
                 inline ParseVal match(_SYNTAX_NUMBER){
                         return ParseVal::Num();
+                }
+                inline ParseVal match(_SYNTAX_TERM){
+                        return ParseVal::Term();
                 }
                 inline ParseVal match(ParseVal val){
                         return val;
