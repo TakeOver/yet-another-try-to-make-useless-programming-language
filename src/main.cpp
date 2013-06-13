@@ -7,138 +7,77 @@ int main(int argc, char const *argv[])
 {
         Parser par;
 
-        using i = ParseVal;
-
-        // <if> ::= 'if' <expression> 'then' <statement> 'else' <expression> 
-        // syntetic <if>. not real. I'll change it later.
-        par.defExpr({
-                        i::Token(L"if"),  i::Expr(), 
-                        i::Token(L"then"),i::Stmt(),
-                        i::Token(L"else"),i::Expr()
-                }, 
-                [](Parser::ParseInfo&){
-                        std::wcerr<<L"alloc if then else\n";
-                        return new Expression();
-                }
-        );
-
-        // <when> ::= 'when' <expression> <statement> 
-        // if without else.
-        par.defStmt({
-                        i::Token(L"when"),i::Expr(),i::Stmt()      
-                }, 
-                [](Parser::ParseInfo&){
-                        std::wcerr<<L"alloc when\n";
-                        return new Statement();
-                }
-        );
-
-        // <let> ::= 'let' <identifer> '=' <expression>
-        par.defStmt({   
-                        i::Token(L"let"),i::Ident(), i::Token(L"="), i::Expr()
-                }, 
-                [](Parser::ParseInfo&){
-                        std::wcerr << L"alloc let\n"; 
-                        return new Statement();
-                }
-        );
-
-        // <block> ::=  '{' <statement>* '}' 
-        // like C/C++ blocks;
-        par.defStmt(i::Token(L"{"),[](Parser & par, Lexer& lex){
-                auto id =lex.TryRecognize(L"}");
-                while(lex.nextTok().id!=id){
-                        std::wcerr << L"tok:" << lex.lastTok().val << L' '<< lex.lastTok().id << L"\n";
-                        par.expectStatement(false);
-                }
-                return new Statement();
-        });
-
-        // haskell lambda notation. only one argument.(for more then one - use carrying)
-        // <lambda> ::= '\' <identifer> '->' <expression>
-        // \ x -> <expression>
-        par.defExpr({
-                        i::Token(L"\\"),i::Ident(),i::Token(L"->"),i::Expr()
-                },  
-                [](Parser::ParseInfo&){
-                        std::wcerr << L"alloc h.lambda\n"; 
-                        return new Expression();
-                }
-        );
-        //and also mathematic lambda notation.
-        // <lambda> ::= 'λ' <identifer> '.' <expression>
-        par.defExpr({
-                        i::Token(L"λ"),i::Ident(),i::Token(L"."),i::Expr()
-                },  
-                [](Parser::ParseInfo&){
-                        std::wcerr << L"alloc m.lambda\n"; 
-                        return new Expression();
-                }
-        );
-
-        par.showRules();
-
-        // simple test.
-        par.addData(L"\\ x -> \
-                        \\ y -> \
-                                if x then\
-                                        {\
-                                                when y \
-                                                        let x = y\
-                                                let y = x\
-                                        }\
-                                else λx.λy.10",
-                L"test");
-
-        par.Parse();
-
-        par.showError(); //if error is empty then all is ok.(or possible all is wrong but error output is empty)
-
         // i'll add value-blocks later. so '{...}' would be <expression> too.
 
+        using namespace Syntax;
+
         // <if> ::= 'if' <expression> '{' <expression> '}' 'else' '{' <expression> '}'
-        par.defExpr({
-                i::Token(L"if"), i::Expr(),
-                        i::Token(L"{"), i::Expr(), i::Token(L"}"),
-                i::Token(L"else"),
-                        i::Token(L"{"), i::Expr(), i::Token(L"}")
-        }, 
+        par.defExpr(L"if-then-else",
+                defSyntax(
+                        (L"if"), expr,
+                                (L"{"), expr, (L"}"),
+                        (L"else"),
+                                (L"{"), expr, (L"}")
+                ), 
                 [](Parser::ParseInfo & info ){
                         return new Expression();         
                 }
         );
         // <when> ::= 'when' <expression> '{' <statement> '}' 
-        par.defStmt({
-                i::Token(L"when"), i::Expr(),
-                        i::Token(L"{"), i::Stmt(), i::Token(L"}")
-        }, 
+        par.defStmt(L"when",
+                defSyntax(
+                        (L"when"), expr,
+                                (L"{"), stmt, (L"}")
+                ), 
                 [](Parser::ParseInfo & info ){
+                        std::wcerr << L"when alloc\n";
                         return new Statement();         
                 }
         );
         // like <when>, but condition must be false.
         // <unless> ::= 'when' <expression> '{' <statement> '}' 
-        par.defStmt({
-                i::Token(L"unless"), i::Expr(),
-                        i::Token(L"{"), i::Stmt(), i::Token(L"}")
-        }, 
+        par.defStmt(L"unless",
+                defSyntax(
+                        (L"unless"), expr,
+                                (L"{"), stmt, (L"}")
+                ), 
                 [](Parser::ParseInfo & info ){
                         return new Statement();         
                 }
         );
 
         // new syntax :)
-        par.defStmt(defSyntax(L"let",Syntax::id,L"=",Syntax::expr),
+        // <let> ::= 'let' <identifer> '=' <expression>
+        auto let = par.defStmt(L"let",
+                defSyntax(L"let",id,L"=",expr),
                 [](Parser::ParseInfo&){
+                        std::wcerr << L"let alloc\n";
                         return new Statement();
                 }
         );
         // now looks like BNF 
-        using namespace Syntax;
-        par.defStmt(defSyntax(L"def",id,L"=",expr),
+        // <def> ::= 'def' <identifer> '=' <expression>
+        par.defStmt(L"def",
+                defSyntax(L"def",id,L"=",expr),
                 [](Parser::ParseInfo&){
                         return new Statement();
                 }
         );
+        // <block> ::= '{' <statement>* '}'
+        par.defStmt(L"block",ParseVal::Token(L"{"), [](Parser& par,Lexer& lex){
+                auto end = lex.TryRecognize(L"}");
+                while(lex.nextTok().id!=end){
+                        par.expectStatement();
+                }
+                std::wcerr << L"block alloc\n";
+                return new Statement();
+        });
+        // <for> ::= 'for' <let> ('let' <identifer> '=' <expression>) 'to' <expression> 'do' <statement>
+        par.defStmt(L"for", defSyntax(L"for",let,L"to",expr,L"do",stmt),
+                [](Parser::ParseInfo&){std::wcerr<<L"for alloc\n";return new Statement();});
+        par.addData(L"for let i = 1 to 10 do { when a b let c = 10 }", L"test");
+        par.Parse();
+        par.showRules();
+        par.showError();
         return 0;
 }

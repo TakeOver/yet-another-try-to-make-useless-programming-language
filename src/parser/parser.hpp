@@ -11,17 +11,19 @@ namespace lambda{
                 Token = 0,
                 Expression,
                 Statement,
-                Identifer
+                Identifer,
+                Rule
         };
         struct ParseVal{
                 
                 ParseValType type;
                 uint16_t token_id = 0;
+                uint32_t rule_id = 0;
                 std::wstring val;
 
                 ParseVal(ParseValType t, std::wstring val): type(t), val(val){}
                 ParseVal(ParseValType t):type(t){}
-
+                ParseVal(ParseValType t, uint32_t id):type(t), rule_id(id){}
                 inline static ParseVal Token(std::wstring val){
                         return ParseVal(ParseValType::Token, val);
                 }
@@ -33,6 +35,9 @@ namespace lambda{
                 }
                 inline static ParseVal Ident(){
                         return ParseVal(ParseValType::Identifer);
+                }
+                inline static ParseVal Rule(uint32_t id){
+                        return ParseVal(ParseValType::Rule,id);
                 }
 
         };
@@ -60,7 +65,7 @@ namespace lambda{
                 std::vector<bool>                                               is_rule; // is rule or  user function .
                 std::vector<stmt_parser>                                        stmt_parsers;
                 std::vector<expr_parser>                                        expr_parsers;
-                
+                std::unordered_map<std::wstring, uint32_t>                      rules_name;
                 Lexer lex;
                 
                 bool            failed = false;
@@ -129,6 +134,44 @@ namespace lambda{
                                         parsed.push_back({*i,expr});
                                         continue;
                                 }
+                                if(i->type == ParseValType::Rule){
+                                        auto id = i->rule_id;
+                                        token_t _tok = lex.nextTok();
+                                        if(!id){
+                                                HandleError(L"Rule expected(id == 0)", _tok.tokinfo);
+                                                finallize(parsed);
+                                                return std::vector<ParsedVal>();
+                                        }
+                                        ParseVal rule_begin = rules[id].front();
+                                        if(rule_begin.token_id != _tok.id){
+                                                HandleError(L"Expected rule with token:"+ rule_begin.val + L" found:"+ _tok.val, _tok.tokinfo);
+                                                finallize(parsed);
+                                                return std::vector<ParsedVal>();
+                                        }
+                                        auto processed = processRule(id, _tok);
+                                        if(processed.size() == 0){
+                                                finallize(parsed);
+                                                return std::vector<ParsedVal>();
+                                        }
+                                        auto type = dispatch_types[id];
+
+                                        if(type){
+                                                auto expr = expression_factory(id, processed);
+                                                if(!expr){
+                                                        finallize(parsed);
+                                                        return std::vector<ParsedVal>();
+                                                }
+                                                parsed.push_back({*i,expr});
+                                                continue;
+                                        }
+                                        auto stmt = statement_factory(id, processed);
+                                        if(!stmt){
+                                                finallize(parsed);
+                                                return std::vector<ParsedVal>();
+                                        }
+                                        parsed.push_back({*i,stmt});
+                                        continue;
+                                }
                                 assert(i->type == ParseValType::Statement && "statement");
                                 auto stmt = expectStatement();
                                 if(!stmt){
@@ -148,7 +191,7 @@ namespace lambda{
                         return expr_allocators[dp](parsed);
                 }
                 
-                inline void defRule(ParseValType pvt, std::vector<ParseVal> rule){
+                inline uint32_t defRule(ParseValType pvt, std::vector<ParseVal> rule){
                         expr_parsers.push_back(nullptr);
                         stmt_parsers.push_back(nullptr);
                         is_rule.push_back(true);
@@ -164,10 +207,18 @@ namespace lambda{
                         auto id = rule.front().token_id;
                         dispatch_by_token[id] = rules.size();
                         rules.push_back(rule);
+                        return rules.size() -1;
                 }
 
         public:
                 typedef std::vector<ParsedVal> ParseInfo;
+
+                uint32_t getRule(std::wstring what){
+                        auto iter = rules_name.find(what);
+                        if(iter == rules_name.end())
+                                return 0;
+                        return iter->second;
+                }
                 Parser(){
                         rules.push_back({});
                         expr_allocators.push_back(nullptr);
@@ -220,40 +271,44 @@ namespace lambda{
                 }
                 
                 void Parse(){
-                        delete expectExpression(); // lol. just testing.
+                        delete expectStatement(); // lol. just testing.
                 }
                 
                 inline void showError(){
                         std::wcerr << L"error:" << error << std::endl;
                 }
                 
-                void defStmt(std::vector<ParseVal> rule,stmt_alloc alloc){
+                uint32_t defStmt(std::wstring name ,std::vector<ParseVal> rule,stmt_alloc alloc){
                         expr_allocators.push_back(nullptr);
                         stmt_allocators.push_back(alloc);
                         dispatch_types.push_back(false);
-                        defRule(lambda::ParseValType::Statement, rule);
+                        uint32_t tmp;
+                        rules_name[name] =  tmp = defRule(lambda::ParseValType::Statement, rule);
+                        return tmp;
+                         
                 }
                 
-                void defExpr(std::vector<ParseVal> rule,expr_alloc alloc){
+                uint32_t defExpr(std::wstring name ,std::vector<ParseVal> rule,expr_alloc alloc){
                         stmt_allocators.push_back(nullptr);
                         expr_allocators.push_back(alloc);
                         dispatch_types.push_back(true);
-                        defRule(lambda::ParseValType::Expression, rule);
+                        return rules_name[name] = defRule(lambda::ParseValType::Expression, rule);
                 }
                 
-                void defExpr(ParseVal begin_tok,expr_parser allocator){
+                uint32_t defExpr(std::wstring name ,ParseVal begin_tok,expr_parser allocator){
                         assert(begin_tok.type == ParseValType::Token&& "defExpr User Function, begin_tok!=Token");
                         is_rule.push_back(false);
                         expr_parsers.push_back(allocator);
                         stmt_parsers.push_back(nullptr);
-                        dispatch_by_token[lex.TryRecognize(begin_tok.val)] = rules.size(); // dirty hack; :C
+                        uint tmp = rules_name[name] = dispatch_by_token[lex.TryRecognize(begin_tok.val)] = rules.size(); // dirty hack; :C
                         dispatch_types.push_back(true);
                         stmt_allocators.push_back(nullptr);
                         expr_allocators.push_back(nullptr);
                         rules.push_back({});
+                        return tmp;
                 }
                 
-                void defStmt(ParseVal begin_tok,stmt_parser allocator){
+                uint32_t defStmt(std::wstring name ,ParseVal begin_tok,stmt_parser allocator){
                         assert(begin_tok.type == ParseValType::Token&& "defExpr User Function, begin_tok!=Token");
                         is_rule.push_back(false);
                         stmt_parsers.push_back(allocator);
@@ -261,8 +316,9 @@ namespace lambda{
                         stmt_allocators.push_back(nullptr);
                         expr_allocators.push_back(nullptr);
                         dispatch_types.push_back(false);
-                        dispatch_by_token[lex.TryRecognize(begin_tok.val)] = rules.size();
+                        uint tmp = rules_name[name] = dispatch_by_token[lex.TryRecognize(begin_tok.val)] = rules.size();
                         rules.push_back({});
+                        return tmp;
                 }
                 
                 void showRules(){
@@ -305,6 +361,9 @@ namespace lambda{
                 inline ParseVal match(std::wstring s){
                         return ParseVal::Token(s);
                 }
+                inline ParseVal match(uint32_t id){
+                        return ParseVal::Rule(id);
+                }
                 inline ParseVal match(_SYNTAX_IDENTIFER_){
                         return ParseVal::Ident();
                 }
@@ -315,7 +374,8 @@ namespace lambda{
                         return ParseVal::Stmt();
                 }
         }
-        template<typename ... Rest>  inline std::vector<ParseVal> defSyntax(Rest ... rest){
-                return std::vector<ParseVal> {Syntax::match(rest)...};
+        // std::wstring tok - safes from some errors. syntax rule _must_ starts with uniq token.
+        template<typename ... Rest>  inline std::vector<ParseVal> defSyntax(std::wstring tok ,Rest ... rest){
+                return std::vector<ParseVal> {Syntax::match(tok),Syntax::match(rest)...};
         }
 }
