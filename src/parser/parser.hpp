@@ -15,19 +15,14 @@ namespace lambda{
                 Rule,
                 String,
                 Operator,
-                Number,
-                // this rule-terms would be very simple, but it can help me to reduce amount of <function> rules.
-                InfStatements // inf statements would be holded is paw c-ptr and terminated by nullptr. (like askiiz str)
-              //  ,
-               // InfExpressions,
-                //InfIdentifers
-
+                Number
         };
         struct ParseVal{
                 
                 ParseValType type;
                 uint16_t token_id = 0;
                 uint32_t rule_id = 0;
+                bool any = false; // i want to reduce 'inf*' parse-types. and make code less ugly
                 std::wstring val; // i'll put String/Number/Operator in val.
 
                 ParseVal(ParseValType t, std::wstring val): type(t), val(val){}
@@ -42,8 +37,9 @@ namespace lambda{
                 inline static ParseVal Stmt(){
                         return ParseVal(ParseValType::Statement);
                 }
-                inline static ParseVal InfStmt(){
-                        return ParseVal(ParseValType::InfStatements);
+                inline static ParseVal Any(ParseVal what){
+                        what.any = true;
+                        return what;
                 }
                 inline static ParseVal Ident(){
                         return ParseVal(ParseValType::Identifer);
@@ -65,18 +61,21 @@ namespace lambda{
         struct ParsedVal{
                 ParseVal pv;                
                 union{
-                        Expression * expr;
-                        Statement * stmt;
                         struct{
-                                Statement ** infstmt;
-                                uint32_t infst_size = 0;
+                                union{
+                                        Statement  ** stmt = nullptr;
+                                        Expression ** expr = nullptr;
+                                };
+                                uint32_t size = 0;
                         };
                 };
+                std::vector<token_t> vals;
 
-                ParsedVal(ParseVal pv, Statement*stmt): pv(pv), stmt(stmt){}
-                ParsedVal(ParseVal pv, Statement**stmt, uint32_t size): pv(pv), infstmt(stmt), infst_size(size){}
-                ParsedVal(ParseVal pv, Expression*expr): pv(pv), expr(expr){}
+                ParsedVal(ParseVal pv, Statement**stmt, uint32_t size = 1): pv(pv), stmt(stmt), size(size){}
+                ParsedVal(ParseVal pv, Expression**expr, uint32_t size = 1): pv(pv), expr(expr), size(size){}
                 ParsedVal(ParseVal pv): pv(pv),expr(nullptr){}
+                ParsedVal(ParseVal pv,std::vector<token_t> && vals):pv(pv), vals(vals){}
+                ParsedVal(ParseVal pv,std::vector<token_t> vals):pv(pv), vals(vals){}
         };
         class Parser{
                 typedef  std::function<Statement*(std::vector<ParsedVal>&)>     stmt_alloc;
@@ -142,105 +141,223 @@ namespace lambda{
                                         continue;
                                 }
                                 if(i->type == ParseValType::Identifer){
-                                        auto id = lex.nextTok();
-                                        if(id.tok!=Token::IDENTIFER && id.id!=static_cast<int>(id.tok)){
-                                                HandleError(L"Identifer expected, found:" + id.val,id.tokinfo);
+                                        bool const any = i->any;
+                                        std::vector<token_t> ids;
+                                        while(true){
+                                                auto id = lex.nextTok();
+                                                if(id.tok!=Token::IDENTIFER || id.id!=static_cast<int>(id.tok)){
+                                                        lex.decCachePos();
+                                                        break;
+                                                }
+                                                ids.push_back(id);
+                                        
+                                        }
+                                        if(!any && !ids.size()){
+                                                HandleError(L"Identifer expected, found:" + lex.lookNextTok().val,lex.lookNextTok().tokinfo);
                                                 finallize(parsed);
                                                 return std::vector<ParsedVal>();
                                         }
-                                        parsed.push_back(ParsedVal(*i));
+                                        parsed.push_back({*i, ids});
                                         continue;
                                 }
                                 if(i->type == ParseValType::Expression){
-                                        auto expr = expectExpression();
-                                        if(!expr){
-                                                finallize(parsed);
-                                                return std::vector<ParsedVal>();
-                                        }
-                                        parsed.push_back({*i,expr});
-                                        continue;
-                                }
-                                if(i->type == ParseValType::Rule){
-                                        auto id = i->rule_id;
-                                        token_t _tok = lex.nextTok();
-                                        if(!id){
-                                                HandleError(L"Rule expected(id == 0)", _tok.tokinfo);
-                                                finallize(parsed);
-                                                return std::vector<ParsedVal>();
-                                        }
-                                        ParseVal rule_begin = rules[id].front();
-                                        if(rule_begin.token_id != _tok.id){
-                                                HandleError(L"Expected rule with token:"+ rule_begin.val + L" found:"+ _tok.val, _tok.tokinfo);
-                                                finallize(parsed);
-                                                return std::vector<ParsedVal>();
-                                        }
-                                        auto processed = processRule(id, _tok);
-                                        if(processed.size() == 0){
-                                                finallize(parsed);
-                                                return std::vector<ParsedVal>();
-                                        }
-                                        auto type = dispatch_types[id];
-
-                                        if(type){
-                                                auto expr = expression_factory(id, processed);
+                                        std::vector<Expression*> st;
+                                        const bool any = i->any;
+                                        while(true){
+                                                auto _tok = lex.lookNextTok();
+                                                auto id = dispatch(_tok);
+                                                if(id && !dispatch_types[id])
+                                                        break;
+                                                auto expr = expectExpression();
                                                 if(!expr){
                                                         finallize(parsed);
                                                         return std::vector<ParsedVal>();
                                                 }
-                                                parsed.push_back({*i,expr});
-                                                continue;
+                                                st.push_back(expr);
+                                                if(!any)
+                                                        break;
+
                                         }
-                                        auto stmt = statement_factory(id, processed);
-                                        if(!stmt){
+                                        if(!any && !st.size()){
+                                                HandleError(L"Expression expected, found:"+ lex.lastTok().val,lex.lastTok().tokinfo);
                                                 finallize(parsed);
                                                 return std::vector<ParsedVal>();
                                         }
-                                        parsed.push_back({*i,stmt});
+                                        Expression ** data = new Expression*[st.size()+1]();
+                                        for(uint i=0, e = st.size();i<e;++i){
+                                                data[i] = st[i];
+                                        }
+                                        data[st.size()] = nullptr;
+                                        parsed.push_back({*i, data, static_cast<uint32_t>(st.size())});
+                                        continue;
+                                }
+                                if(i->type == ParseValType::Rule){
+                                        auto id = i->rule_id;
+                                        const bool any = i->any;
+                                        if(!id){
+                                                HandleError(L"Rule expected(id == 0)", lex.lastTok().tokinfo);
+                                                finallize(parsed);
+                                                return std::vector<ParsedVal>();
+                                        }
+                                        const ParseVal rule_begin = rules[id].front();
+                                        struct __tmp {
+                                                union{
+                                                        Expression* ptre;
+                                                        Statement* ptrs = nullptr;
+                                                        void * ptr;
+                                                };
+                                                __tmp(void*ptr):ptr(ptr){}
+                                        };
+                                        auto const type = dispatch_types[id];
+                                        std::vector<__tmp> vec;
+                                        while(true){
+                                                token_t _tok = lex.nextTok();
+                                                if(rule_begin.token_id != _tok.id){
+                                                        lex.decCachePos();
+                                                        break;
+                                                }
+                                                auto processed = processRule(id, _tok);
+                                                if(processed.size() == 0){
+                                                        finallize(parsed);
+                                                        for(auto&x:vec)
+                                                                if(type){
+                                                                        delete x.ptre; 
+                                                                } else {
+                                                                        delete x.ptrs;
+                                                                }
+                                                        return std::vector<ParsedVal>();
+                                                }
+
+                                                if(type){
+                                                        auto expr = expression_factory(id, processed);
+                                                        if(!expr){
+                                                                finallize(parsed);
+                                                                for(auto&x:vec)
+                                                                        if(type){
+                                                                                delete x.ptre; 
+                                                                        } else {
+                                                                                delete x.ptrs;
+                                                                        }
+                                                                return std::vector<ParsedVal>();
+                                                        }
+                                                        vec.push_back(expr);
+                                                        if(any)
+                                                                continue;
+                                                        else   
+                                                                break;
+                                                }
+                                                auto stmt = statement_factory(id, processed);
+                                                if(!stmt){
+                                                        finallize(parsed);
+                                                        for(auto&x:vec)
+                                                                if(type){
+                                                                        delete x.ptre; 
+                                                                } else {
+                                                                        delete x.ptrs;
+                                                                }
+                                                        return std::vector<ParsedVal>();
+                                                }
+                                                vec.push_back(stmt);
+                                                if(any)
+                                                        continue;
+                                                else   
+                                                        break;
+                                        }
+                                        if(!any && !vec.size()){
+                                                HandleError(L"Rule expected["+rule_begin.val+L"] found:"+lex.lookNextTok().val,lex.lookNextTok().tokinfo);
+                                                finallize(parsed);
+                                                for(auto&x:vec)
+                                                        if(type){
+                                                                delete x.ptre; 
+                                                        } else {
+                                                                delete x.ptrs;
+                                                        }
+                                                return std::vector<ParsedVal>();
+                                        }
+                                        if(type){
+                                                Expression ** data = new Expression*[vec.size()+1];
+                                                for(uint i=0;i<vec.size();++i)
+                                                        data[i] = vec[i].ptre;
+                                                data[vec.size()] = nullptr;
+                                                parsed.push_back({*i,data,static_cast<uint32_t>(vec.size())});
+                                        }else{
+                                                Statement ** data = new Statement*[vec.size()+1];
+                                                for(uint i=0;i<vec.size();++i)
+                                                        data[i] = vec[i].ptrs;
+                                                data[vec.size()] = nullptr;
+                                                parsed.push_back({*i,data,static_cast<uint32_t>(vec.size())});
+
+                                        }
                                         continue;
                                 }
                                 if(i->type == ParseValType::String){
-                                        auto str = lex.nextTok();
-                                        if(str.tok != Token::STRING){
-                                                HandleError(L"String expected, found:" + tok.val, tok.tokinfo);
+                                        bool const any = i->any;
+                                        std::vector<token_t> ids;
+                                        while(true){
+                                                auto id = lex.nextTok();
+                                                if(id.tok!=Token::STRING){
+                                                        lex.decCachePos();
+                                                        break;
+                                                }
+                                                ids.push_back(id);
+                                        
+                                        }
+                                        if(!any && !ids.size()){
+                                                HandleError(L"String expected, found:" + lex.lookNextTok().val,lex.lookNextTok().tokinfo);
                                                 finallize(parsed);
                                                 return std::vector<ParsedVal>();
-                                        }       
-                                        ParsedVal pv (ParseValType::String);
-                                        pv.pv.val = tok.val;
-                                        parsed.push_back(pv);
+                                        }
+                                        parsed.push_back({*i, ids});
                                         continue;
                                 }
                                 if(i->type == ParseValType::Operator){
-                                        auto str = lex.nextTok();
-                                        if(str.tok != Token::OPERATOR){
-                                                HandleError(L"Operator expected, found:" + tok.val, tok.tokinfo);
+                                        bool const any = i->any;
+                                        std::vector<token_t> ids;
+                                        while(true){
+                                                auto id = lex.nextTok();
+                                                if(id.tok!=Token::OPERATOR){
+                                                        lex.decCachePos();
+                                                        break;
+                                                }
+                                                ids.push_back(id);
+                                        
+                                        }
+                                        if(!any && !ids.size()){
+                                                HandleError(L"Operator expected, found:" + lex.lookNextTok().val,lex.lookNextTok().tokinfo);
                                                 finallize(parsed);
                                                 return std::vector<ParsedVal>();
-                                        }       
-                                        ParsedVal pv (ParseValType::Operator);
-                                        pv.pv.val = tok.val;
-                                        parsed.push_back(pv);
+                                        }
+                                        parsed.push_back({*i, ids});
                                         continue;
                                 }
                                 if(i->type == ParseValType::Number){
-                                        auto str = lex.nextTok();
-                                        if(str.tok != Token::NUM){
-                                                HandleError(L"Number expected, found:" + tok.val, tok.tokinfo);
+                                        bool const any = i->any;
+                                        std::vector<token_t> ids;
+                                        while(true){
+                                                auto id = lex.nextTok();
+                                                if(id.tok!=Token::NUM){
+                                                        lex.decCachePos();
+                                                        break;
+                                                }
+                                                ids.push_back(id);
+                                        
+                                        }
+                                        if(!any && !ids.size()){
+                                                HandleError(L"Number expected, found:" + lex.lookNextTok().val,lex.lookNextTok().tokinfo);
                                                 finallize(parsed);
                                                 return std::vector<ParsedVal>();
-                                        }       
-                                        ParsedVal pv (ParseValType::Number);
-                                        pv.pv.val = tok.val;
-                                        parsed.push_back(pv);
+                                        }
+                                        parsed.push_back({*i, ids});
                                         continue;
                                 }
-                                if(i->type == ParseValType::InfStatements){
+                                if(i->type == ParseValType::Statement){
                                         DBG_TRACE("parsing statements*");
                                         std::vector<Statement*> st;
+                                        const bool any = i->any;
                                         while(true){
                                                 auto _tok = lex.lookNextTok();
                                                 auto id = dispatch(_tok);
-                                                if(!id || dispatch_types[dp])
+                                                if(!id)
                                                         break;
                                                 auto stmt = expectStatement();
                                                 if(!stmt){
@@ -248,7 +365,14 @@ namespace lambda{
                                                         return std::vector<ParsedVal>();
                                                 }
                                                 st.push_back(stmt);
+                                                if(!any)
+                                                        break;
 
+                                        }
+                                        if(!any && !st.size()){
+                                                HandleError(L"Statement expected, found:"+ lex.lastTok().val,lex.lastTok().tokinfo);
+                                                finallize(parsed);
+                                                return std::vector<ParsedVal>();
                                         }
                                         Statement ** data = new Statement*[st.size()+1]();
                                         for(uint i=0, e = st.size();i<e;++i){
@@ -258,13 +382,8 @@ namespace lambda{
                                         parsed.push_back({*i, data, static_cast<uint32_t>(st.size())});
                                         continue;
                                 }
-                                assert(i->type == ParseValType::Statement && "statement");
-                                auto stmt = expectStatement();
-                                if(!stmt){
-                                        finallize(parsed);
-                                        return std::vector<ParsedVal>();
-                                }
-                                parsed.push_back({*i,stmt});
+                                assert(false);
+                                return std::vector<ParsedVal>();                           
                         }
                         return parsed;
                 }
@@ -416,11 +535,11 @@ namespace lambda{
                                         if(x.type == ParseValType::Token){
                                                 std::wcerr << x.val << L"(" << x.token_id << L") ";
                                         }else if(x.type == ParseValType::Expression){
-                                                std::wcerr << L"$expr ";
+                                                std::wcerr << (x.any?L"any!":L"") <<  L"$expr ";
                                         }else if(x.type == ParseValType::Statement){
-                                                std::wcerr << L"#stmt ";
+                                                std::wcerr << (x.any?L"any!":L"") << L"#stmt ";
                                         }else if(x.type == ParseValType::Rule){
-                                                std::wcerr << L"@rule< ";
+                                                std::wcerr << (x.any?L"any!":L"") << L"@rule< ";
                                                 if(x.rule_id == id){
                                                         std::wcerr << L"self! ";
                                                 }
@@ -428,10 +547,8 @@ namespace lambda{
                                                         _show_rule(x.rule_id, rules[x.rule_id].front().token_id);
                                                 }
                                                 std::wcerr << L"> ";
-                                        }else if(x.type == ParseValType::InfStatements){
-                                                std::wcerr << L"#<statement*> ";
                                         }else {                                                
-                                                std::wcerr << L"%id ";
+                                                std::wcerr << (x.any?L"any!":L"") << L"%id ";
                                         }
                                 } 
                 }
@@ -454,14 +571,13 @@ namespace lambda{
                 struct _SYNTAX_IDENTIFER_{};
                 struct _SYNTAX_EXPRESSION{};
                 struct _SYNTAX_STATEMENT{};
-                struct _SYNTAX_STATEMENTS{};
                 struct _SYNTAX_STRING{};
                 struct _SYNTAX_OPERATOR{};
                 struct _SYNTAX_NUMBER{};
+                template<typename T> struct _SYNTAX_ANY{};
                 _SYNTAX_IDENTIFER_              id;
                 _SYNTAX_EXPRESSION              expr;
                 _SYNTAX_STATEMENT               stmt;
-                _SYNTAX_STATEMENTS              infstmts;
                 _SYNTAX_STRING                  str;
                 _SYNTAX_OPERATOR                oper;
                 _SYNTAX_NUMBER                  num;
@@ -481,9 +597,6 @@ namespace lambda{
                 inline ParseVal match(_SYNTAX_STATEMENT){
                         return ParseVal::Stmt();
                 }
-                inline ParseVal match(_SYNTAX_STATEMENTS){
-                        return ParseVal::InfStmt();
-                }
                 inline ParseVal match(_SYNTAX_STRING){
                         return ParseVal::Str();
                 }
@@ -493,6 +606,13 @@ namespace lambda{
                 inline ParseVal match(_SYNTAX_NUMBER){
                         return ParseVal::Num();
                 }
+                inline ParseVal match(ParseVal val){
+                        return val;
+                }
+                template<typename T> inline ParseVal match(_SYNTAX_ANY<T>){
+                        return ParseVal::Any(match(T()));
+                }
+                template<typename T> inline _SYNTAX_ANY<T> any(T){return _SYNTAX_ANY<T>();}
         }
         // std::wstring tok - safes from some errors. syntax rule _must_ starts with uniq token.
         template<typename ... Rest>  inline std::vector<ParseVal> defSyntax(std::wstring tok ,Rest ... rest){
