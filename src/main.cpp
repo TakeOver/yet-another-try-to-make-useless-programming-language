@@ -8,13 +8,12 @@ int main(int argc, char const *argv[])
         Parser par;
 
         // i'll add value-blocks later. so '{...}' would be <expression> too.
-
         using namespace Syntax;
 
         // <block> ::= '{' <statement>* '}'
         auto block = par.defStmt(L"block",
                 defSyntax(
-                        (L"{"),infstmts, (L"}")
+                        (L"{"), any(stmt), (L"}")
                 ),
                 [](Parser::ParseInfo&){std::wcerr << L"block alloc\n"; return new Statement();}
         );
@@ -22,10 +21,8 @@ int main(int argc, char const *argv[])
         // <if> ::= 'if' <expression> '{' <expression> '}' 'else' '{' <expression> '}'
         par.defExpr(L"if-then-else",
                 defSyntax(
-                        (L"if"), expr,
-                                (L"{"), expr, (L"}"),
-                        (L"else"),
-                                (L"{"), expr, (L"}")
+                        (L"if"), expr,  block,
+                        (L"else"),      block
                 ), 
                 [](Parser::ParseInfo & info ){
                         return new Expression();         
@@ -68,9 +65,10 @@ int main(int argc, char const *argv[])
         // <def> ::= 'def' <identifer> '=' <expression>
         par.defStmt(L"def",
                 defSyntax(
-                        (L"def"),id,(L"="),expr
+                        (L"def"),any(id),(L"="),expr
                 ),
                 [](Parser::ParseInfo&){
+                        std::wcerr << L"def alloc\n";
                         return new Statement();
                 }
         );
@@ -80,11 +78,37 @@ int main(int argc, char const *argv[])
                 defSyntax(
                         (L"for"),let,(L"to"),expr,(L"do"),block
                 ),
-                [](Parser::ParseInfo&){std::wcerr<<L"for alloc\n";return new Statement();});
+                [](Parser::ParseInfo&){std::wcerr<<L"for alloc\n";return new Statement();
+        });
 
-        par.addData(L"for let i = 1 to 10 do { when a { unless a {let c = 10.1} } let c = 10 }", L"test");
+        par.addData(L"for let i = 1 to 10 do { when a { unless a {let c = 10.1} } def f x y = 10 }", L"test");
+        
         par.Parse();
         
+        par.defExpr(L"lambda",
+                defSyntax(
+                        (L"\\"), id, (L"->"), expr
+                ),
+                [](Parser::ParseInfo&){return new Expression();}
+        );
+
+        par.defStmt(L"macro",
+                defSyntax(
+                        (L"macro"), id, (L"["), any(stmt), // declare syntax. todo - change to inf(id|str) , all declared as <id> - macro argument.
+                                (L"]"),(L"="), stmt
+                ), 
+                [] (Parser::ParseInfo&){return new Statement();}
+        );
+        par.defStmt(L"`unpack",
+                defSyntax(
+                        (L"`unpack"),(L"("),(L"<["),any(str),(L"]>"),id, (L")")
+                ),
+                [](Parser::ParseInfo&){return new Statement();}
+        );
+        // use - macro def ["def",<id>, infid, "=", <expression>] = let id = `unpack( [\ `1  ->] ~> infid) <expression>  
+                                                                // \ id -> expr - haskell lambda notation
+                                                                // `unpack - unpacking arguments. like variadic template, but a bit more powerful
+        // def f x y = x*y // => produces: let x = \x -> \y -> x*y
         par.showRules();
         par.showError();
         return 0;
