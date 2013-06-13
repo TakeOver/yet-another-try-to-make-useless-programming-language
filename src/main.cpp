@@ -115,7 +115,7 @@ int main(int argc, char const *argv[])
                                 }                                               \
                                 def f x y = 10                                  \
                                 macro `def [ \"def\" f `i \"=\" expr ] =        \
-                                let f = \\ i -> expr                            \
+                                        let f = \\ i -> expr                    \
                         }"
 
                 , L"test");
