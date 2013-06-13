@@ -12,14 +12,23 @@ namespace lambda{
                 Expression,
                 Statement,
                 Identifer,
-                Rule
+                Rule,
+                String,
+                Operator,
+                Number,
+                // this rule-terms would be wery simple, but it can help me to reduce amount of <function> rules.
+                InfStatements // inf statements would be holded is paw c-ptr and terminated by nullptr. (like askiiz str)
+              //  ,
+               // InfExpressions,
+                //InfIdentifers
+
         };
         struct ParseVal{
                 
                 ParseValType type;
                 uint16_t token_id = 0;
                 uint32_t rule_id = 0;
-                std::wstring val;
+                std::wstring val; // i'll put String/Number/Operator in val.
 
                 ParseVal(ParseValType t, std::wstring val): type(t), val(val){}
                 ParseVal(ParseValType t):type(t){}
@@ -33,11 +42,23 @@ namespace lambda{
                 inline static ParseVal Stmt(){
                         return ParseVal(ParseValType::Statement);
                 }
+                inline static ParseVal InfStmt(){
+                        return ParseVal(ParseValType::InfStatements);
+                }
                 inline static ParseVal Ident(){
                         return ParseVal(ParseValType::Identifer);
                 }
                 inline static ParseVal Rule(uint32_t id){
                         return ParseVal(ParseValType::Rule,id);
+                }
+                inline static ParseVal Str(){
+                        return ParseVal(ParseValType::String);
+                }
+                inline static ParseVal Oper(){
+                        return ParseVal(ParseValType::Operator);
+                }
+                inline static ParseVal Num(){
+                        return ParseVal(ParseValType::Number);
                 }
 
         };
@@ -46,9 +67,14 @@ namespace lambda{
                 union{
                         Expression * expr;
                         Statement * stmt;
+                        struct{
+                                Statement ** infstmt;
+                                uint32_t infst_size = 0;
+                        };
                 };
 
                 ParsedVal(ParseVal pv, Statement*stmt): pv(pv), stmt(stmt){}
+                ParsedVal(ParseVal pv, Statement**stmt, uint32_t size): pv(pv), infstmt(stmt), infst_size(size){}
                 ParsedVal(ParseVal pv, Expression*expr): pv(pv), expr(expr){}
                 ParsedVal(ParseVal pv): pv(pv),expr(nullptr){}
         };
@@ -170,6 +196,66 @@ namespace lambda{
                                                 return std::vector<ParsedVal>();
                                         }
                                         parsed.push_back({*i,stmt});
+                                        continue;
+                                }
+                                if(i->type == ParseValType::String){
+                                        auto str = lex.nextTok();
+                                        if(str.tok != Token::STRING){
+                                                HandleError(L"String expected, found:" + tok.val, tok.tokinfo);
+                                                finallize(parsed);
+                                                return std::vector<ParsedVal>();
+                                        }       
+                                        ParsedVal pv (ParseValType::String);
+                                        pv.pv.val = tok.val;
+                                        parsed.push_back(pv);
+                                        continue;
+                                }
+                                if(i->type == ParseValType::Operator){
+                                        auto str = lex.nextTok();
+                                        if(str.tok != Token::OPERATOR){
+                                                HandleError(L"Operator expected, found:" + tok.val, tok.tokinfo);
+                                                finallize(parsed);
+                                                return std::vector<ParsedVal>();
+                                        }       
+                                        ParsedVal pv (ParseValType::Operator);
+                                        pv.pv.val = tok.val;
+                                        parsed.push_back(pv);
+                                        continue;
+                                }
+                                if(i->type == ParseValType::Number){
+                                        auto str = lex.nextTok();
+                                        if(str.tok != Token::NUM){
+                                                HandleError(L"Number expected, found:" + tok.val, tok.tokinfo);
+                                                finallize(parsed);
+                                                return std::vector<ParsedVal>();
+                                        }       
+                                        ParsedVal pv (ParseValType::Number);
+                                        pv.pv.val = tok.val;
+                                        parsed.push_back(pv);
+                                        continue;
+                                }
+                                if(i->type == ParseValType::InfStatements){
+                                        DBG_TRACE("parsing statements*");
+                                        std::vector<Statement*> st;
+                                        while(true){
+                                                auto _tok = lex.lookNextTok();
+                                                auto id = dispatch(_tok);
+                                                if(!id || dispatch_types[dp])
+                                                        break;
+                                                auto stmt = expectStatement();
+                                                if(!stmt){
+                                                        finallize(parsed);
+                                                        return std::vector<ParsedVal>();
+                                                }
+                                                st.push_back(stmt);
+
+                                        }
+                                        Statement ** data = new Statement*[st.size()+1]();
+                                        for(uint i=0, e = st.size();i<e;++i){
+                                                data[i] = st[i];
+                                        }
+                                        data[st.size()] = nullptr;
+                                        parsed.push_back({*i, data, static_cast<uint32_t>(st.size())});
                                         continue;
                                 }
                                 assert(i->type == ParseValType::Statement && "statement");
@@ -321,7 +407,7 @@ namespace lambda{
                         return tmp;
                 }
                 void _show_rule(uint32_t id, uint32_t tok){                        
-                                std::wcerr << (dispatch_types[id]?L"[expr] ":L"[stmt] ") << tok << L' ';
+                                std::wcerr << (dispatch_types[id]?L"[expr] ":L"[stmt] ") << id << L' ';
                                 if(!is_rule[id]){
                                         std::wcerr << lex.tokById(tok) <<L"(" << tok << L")" << L" <function>\n";
                                         return;
@@ -342,7 +428,9 @@ namespace lambda{
                                                         _show_rule(x.rule_id, rules[x.rule_id].front().token_id);
                                                 }
                                                 std::wcerr << L"> ";
-                                        }else{                                                
+                                        }else if(x.type == ParseValType::InfStatements){
+                                                std::wcerr << L"#<statement*> ";
+                                        }else {                                                
                                                 std::wcerr << L"%id ";
                                         }
                                 } 
@@ -366,9 +454,17 @@ namespace lambda{
                 struct _SYNTAX_IDENTIFER_{};
                 struct _SYNTAX_EXPRESSION{};
                 struct _SYNTAX_STATEMENT{};
+                struct _SYNTAX_STATEMENTS{};
+                struct _SYNTAX_STRING{};
+                struct _SYNTAX_OPERATOR{};
+                struct _SYNTAX_NUMBER{};
                 _SYNTAX_IDENTIFER_              id;
                 _SYNTAX_EXPRESSION              expr;
                 _SYNTAX_STATEMENT               stmt;
+                _SYNTAX_STATEMENTS              infstmts;
+                _SYNTAX_STRING                  str;
+                _SYNTAX_OPERATOR                oper;
+                _SYNTAX_NUMBER                  num;
 
                 inline ParseVal match(std::wstring s){
                         return ParseVal::Token(s);
@@ -384,6 +480,18 @@ namespace lambda{
                 }
                 inline ParseVal match(_SYNTAX_STATEMENT){
                         return ParseVal::Stmt();
+                }
+                inline ParseVal match(_SYNTAX_STATEMENTS){
+                        return ParseVal::InfStmt();
+                }
+                inline ParseVal match(_SYNTAX_STRING){
+                        return ParseVal::Str();
+                }
+                inline ParseVal match(_SYNTAX_OPERATOR){
+                        return ParseVal::Oper();
+                }
+                inline ParseVal match(_SYNTAX_NUMBER){
+                        return ParseVal::Num();
                 }
         }
         // std::wstring tok - safes from some errors. syntax rule _must_ starts with uniq token.
