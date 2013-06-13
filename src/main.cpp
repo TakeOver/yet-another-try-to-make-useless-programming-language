@@ -81,10 +81,6 @@ int main(int argc, char const *argv[])
                 [](Parser::ParseInfo&){std::wcerr<<L"for alloc\n";return new Statement();
         });
 
-        par.addData(L"for let i = 1 to 10 do { when a { unless a {let c = 10.1} } def f x y = 10 }", L"test");
-        
-        par.Parse();
-        
         par.defExpr(L"lambda",
                 defSyntax(
                         (L"\\"), id, (L"->"), expr
@@ -94,14 +90,14 @@ int main(int argc, char const *argv[])
 
         par.defStmt(L"macro",
                 defSyntax(
-                        (L"macro"), id, (L"["), any(stmt), // declare syntax. todo - change to inf(id|str) , all declared as <id> - macro argument.
+                        (L"macro"), id , (L"["), any(term) , // declare syntax. todo - change to inf(id|str) , all declared as <id> - macro argument.
                                 (L"]"),(L"="), stmt
                 ), 
-                [] (Parser::ParseInfo&){return new Statement();}
+                [] (Parser::ParseInfo&){std::wcerr<<L"macro alloc\n";return new Statement();}
         );
         par.defStmt(L"`unpack",
                 defSyntax(
-                        (L"`unpack"),(L"("),(L"<["),any(str),(L"]>"),id, (L")")
+                        (L"`unpack"),(L"("),(L"<["),any(term),(L"]>"),any(id), (L")")
                 ),
                 [](Parser::ParseInfo&){return new Statement();}
         );
@@ -110,6 +106,11 @@ int main(int argc, char const *argv[])
                                                                 // `unpack - unpacking arguments. like variadic template, but a bit more powerful
         // def f x y = x*y // => produces: let x = \x -> \y -> x*y
         par.showRules();
+
+        par.addData(L"for let i = 1 to 10 do { when a { unless a {let c = 10.1} } def f x y = 10  macro `def [\"def\"f i \"=\" expr ] = let f = \\ i -> expr }", L"test");
+        
+        par.Parse();
+        
         par.showError();
         return 0;
 }
