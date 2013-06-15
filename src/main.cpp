@@ -1,14 +1,20 @@
-#include "lexer/lexer.hpp"
+
 #include <iostream>
+
+#include "lexer/lexer.hpp"
 #include "utils/debug.hpp"
 #include "parser/parser.hpp"
-using namespace lambda;
+#include "parser/syntax.hpp"
+
+
 int main(int argc, char const *argv[])
 {
-        Parser par;
 
         // i'll add value-blocks later. so '{...}' would be <expression> too.
+        using namespace lambda;
         using namespace Syntax;
+        
+        Parser par;
 
         // <block> ::= '{' <statement>* '}'
         auto block = par.defStmt(L"block",
@@ -101,10 +107,10 @@ int main(int argc, char const *argv[])
                 ),
                 [](Parser::ParseInfo&){return new Statement();}
         );
-        // use - macro def ["def",<id>, infid, "=", <expression>] = let id = `unpack( [\ `1  ->] ~> infid) <expression>  
+        // use - macro def ["def", #id! , #id!any , "=", #expr! ] = let id = `unpack( [\ `1  ->] ~> infid) <expression>  
                                                                 // \ id -> expr - haskell lambda notation
                                                                 // `unpack - unpacking arguments. like variadic template, but a bit more powerful
-        // def f x y = x*y // => produces: let x = \x -> \y -> x*y
+        // def f x y = x*y // => produces: let f = \x -> \y -> x*y
         par.showRules();
 
         par.addData(L"  for let i = 1 to 10 do {                                \
