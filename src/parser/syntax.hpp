@@ -23,6 +23,7 @@ namespace lambda{
                 struct _SYNTAX_TERM{};
                 struct _SYNTAX_NUMBER{};
                 template<typename T> struct _SYNTAX_ANY{};
+                template<> struct _SYNTAX_ANY<uint32_t>{const uint32_t t; _SYNTAX_ANY(uint32_t t):t(t){}};
                 _SYNTAX_IDENTIFER_              id;
                 _SYNTAX_EXPRESSION              expr;
                 _SYNTAX_STATEMENT               stmt;
@@ -61,7 +62,10 @@ namespace lambda{
                 inline ParseVal match(ParseVal val){
                         return val;
                 }
-                template<typename T> inline ParseVal match(_SYNTAX_ANY<T>){
+                inline ParseVal match(_SYNTAX_ANY<uint32_t> any_){
+                        return ParseVal::Any(match(any_.t));
+                }
+                template<typename T> inline ParseVal match(_SYNTAX_ANY<T> any_){
                         return ParseVal::Any(match(T()));
                 }
                 template<typename T> inline _SYNTAX_ANY<T> any(T){return _SYNTAX_ANY<T>();}
