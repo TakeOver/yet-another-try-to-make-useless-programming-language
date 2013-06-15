@@ -1,100 +1,34 @@
 #pragma once
+
 #include "../lexer/lexer.hpp"
-#include <map>
-#include <functional>
-#include <exception>
 #include "../ast/statement.hpp"
 #include "../ast/expression.hpp"
 #include "../utils/debug.hpp"
+#include "parseval.hpp"
+#include <map>
+#include <functional>
+#include <exception>
+
 namespace lambda{
-        enum class ParseValType{
-                Token = 0,
-                Expression,
-                Statement,
-                Identifer,
-                Rule,
-                String,
-                Operator,
-                Number,
-                Term
-        };
-        struct ParseVal{
-                
-                ParseValType type;
-                uint16_t token_id = 0;
-                uint32_t rule_id = 0;
-                bool any = false; // i want to reduce 'inf*' parse-types. and make code less ugly
-                std::wstring val; // i'll put String/Number/Operator in val.
 
-                ParseVal(ParseValType t, std::wstring val): type(t), val(val){}
-                ParseVal(ParseValType t):type(t){}
-                ParseVal(ParseValType t, uint32_t id):type(t), rule_id(id){}
-                inline static ParseVal Token(std::wstring val){
-                        return ParseVal(ParseValType::Token, val);
-                }
-                inline static ParseVal Expr() {
-                        return ParseVal(ParseValType::Expression);
-                }
-                inline static ParseVal Stmt(){
-                        return ParseVal(ParseValType::Statement);
-                }
-                inline static ParseVal Any(ParseVal what){
-                        what.any = true;
-                        return what;
-                }
-                inline static ParseVal Ident(){
-                        return ParseVal(ParseValType::Identifer);
-                }
-                inline static ParseVal Rule(uint32_t id){
-                        return ParseVal(ParseValType::Rule,id);
-                }
-                inline static ParseVal Str(){
-                        return ParseVal(ParseValType::String);
-                }
-                inline static ParseVal Oper(){
-                        return ParseVal(ParseValType::Operator);
-                }
-                inline static ParseVal Num(){
-                        return ParseVal(ParseValType::Number);
-                }
-                inline static ParseVal Term(){
-                        return ParseVal(ParseValType::Term);
-                }
-
-        };
-        struct ParsedVal{
-                ParseVal pv;                
-                union{
-                        struct{
-                                union{
-                                        Statement  ** stmt = nullptr;
-                                        Expression ** expr = nullptr;
-                                };
-                                uint32_t size = 0;
-                        };
-                };
-                std::vector<token_t> vals;
-
-                ParsedVal(ParseVal pv, Statement**stmt, uint32_t size = 1): pv(pv), stmt(stmt), size(size){}
-                ParsedVal(ParseVal pv, Expression**expr, uint32_t size = 1): pv(pv), expr(expr), size(size){}
-                ParsedVal(ParseVal pv): pv(pv),expr(nullptr){}
-                ParsedVal(ParseVal pv,std::vector<token_t> && vals):pv(pv), vals(vals){}
-                ParsedVal(ParseVal pv,std::vector<token_t> vals):pv(pv), vals(vals){}
-        };
         class Parser{
-                typedef  std::function<Statement*(std::vector<ParsedVal>&)>     stmt_alloc;
-                typedef  std::function<Expression*(std::vector<ParsedVal>&)>    expr_alloc;
-                typedef  std::function<Statement*(Parser&,Lexer&)>              stmt_parser;
-                typedef  std::function<Expression*(Parser&,Lexer&)>             expr_parser;
-                std::unordered_map<uint32_t, uint32_t>                          dispatch_by_token;
-                std::vector<bool>                                               dispatch_types; // true - expression. false - stmt;
-                std::vector<stmt_alloc >                                        stmt_allocators;
-                std::vector<expr_alloc >                                        expr_allocators; 
-                std::vector<std::vector<ParseVal>>                              rules; 
-                std::vector<bool>                                               is_rule; // is rule or  user function .
-                std::vector<stmt_parser>                                        stmt_parsers;
-                std::vector<expr_parser>                                        expr_parsers;
-                std::unordered_map<std::wstring, uint32_t>                      rules_name;
+                
+                typedef std::function < Statement*  ( std::vector<ParsedVal>& ) > stmt_alloc;
+                typedef std::function < Expression* ( std::vector<ParsedVal>& ) > expr_alloc;
+
+                typedef std::function < Statement*  ( Parser&, Lexer& ) >       stmt_parser;
+                typedef std::function < Expression* ( Parser&, Lexer& ) >       expr_parser;
+
+                std::unordered_map< uint32_t, uint32_t >                        dispatch_by_token;
+                std::vector< bool >                                             dispatch_types; // true - expression. false - stmt;
+                std::vector< stmt_alloc >                                       stmt_allocators;
+                std::vector< expr_alloc >                                       expr_allocators; 
+                std::vector< std::vector< ParseVal > >                          rules; 
+                std::vector< bool >                                             is_rule; // is rule or  user function .
+                std::vector< stmt_parser >                                      stmt_parsers;
+                std::vector< expr_parser >                                      expr_parsers;
+                std::unordered_map< std::wstring, uint32_t >                    rules_name;
+
                 Lexer lex;
                 
                 bool            failed = false;
@@ -127,13 +61,20 @@ namespace lambda{
                                         delete x.stmt;
                 }
                 
-                std::vector<ParsedVal> processRule(uint32_t dp, token_t & tok){                        
+                std::vector<ParsedVal> processRule(uint32_t dp, token_t & tok){       
+
                         std::vector<ParsedVal> parsed;
+
                         auto& rule = rules[dp];
+
                         parsed.push_back({rule.front()});
+
                         DBG_TRACE("rule:%d",dp);
+
                         for(std::vector<ParseVal>::iterator i = rule.begin()+1, e = rule.end(); i!=e;++i){
+
                                 DBG_TRACE("%d %d",i->type, i->token_id);
+
                                 if(i->type == ParseValType::Token){
                                         auto token = lex.nextTok();
                                         if(token.id != i->token_id){
@@ -144,6 +85,7 @@ namespace lambda{
                                         parsed.push_back(ParsedVal(*i));
                                         continue;
                                 }
+
                                 if(i->type == ParseValType::Identifer){
                                         bool const any = i->any;
                                         std::vector<token_t> ids;
@@ -164,6 +106,7 @@ namespace lambda{
                                         parsed.push_back({*i, ids});
                                         continue;
                                 }
+
                                 if(i->type == ParseValType::Expression){
                                         std::vector<Expression*> st;
                                         const bool any = i->any;
@@ -195,6 +138,7 @@ namespace lambda{
                                         parsed.push_back({*i, data, static_cast<uint32_t>(st.size())});
                                         continue;
                                 }
+
                                 if(i->type == ParseValType::Rule){
                                         auto id = i->rule_id;
                                         const bool any = i->any;
@@ -294,6 +238,7 @@ namespace lambda{
                                         }
                                         continue;
                                 }
+
                                 if(i->type == ParseValType::String){
                                         bool const any = i->any;
                                         std::vector<token_t> ids;
@@ -314,6 +259,7 @@ namespace lambda{
                                         parsed.push_back({*i, ids});
                                         continue;
                                 }
+
                                 if(i->type == ParseValType::Operator){
                                         bool const any = i->any;
                                         std::vector<token_t> ids;
@@ -334,6 +280,7 @@ namespace lambda{
                                         parsed.push_back({*i, ids});
                                         continue;
                                 }
+
                                 if(i->type == ParseValType::Number){
                                         bool const any = i->any;
                                         std::vector<token_t> ids;
@@ -354,6 +301,7 @@ namespace lambda{
                                         parsed.push_back({*i, ids});
                                         continue;
                                 }
+
                                 if(i->type == ParseValType::Term){                                        
                                         bool const any = i->any;
                                         std::vector<token_t> ids;
@@ -374,6 +322,7 @@ namespace lambda{
                                         parsed.push_back({*i, ids});
                                         continue;
                                 }
+
                                 if(i->type == ParseValType::Statement){
                                         DBG_TRACE("parsing statements*");
                                         std::vector<Statement*> st;
@@ -406,9 +355,12 @@ namespace lambda{
                                         parsed.push_back({*i, data, static_cast<uint32_t>(st.size())});
                                         continue;
                                 }
+
                                 assert(false);
-                                return std::vector<ParsedVal>();                           
+                                return std::vector<ParsedVal>();   
+
                         }
+                        
                         return parsed;
                 }
                 
@@ -440,39 +392,53 @@ namespace lambda{
                 }
 
         public:
-                typedef std::vector<ParsedVal> ParseInfo;
+                typedef std::vector < ParsedVal > ParseInfo;
 
-                uint32_t getRule(std::wstring what){
-                        auto iter = rules_name.find(what);
-                        if(iter == rules_name.end())
+                uint32_t getRule( std::wstring what ){
+                        auto iter = rules_name.find( what );
+                        if ( iter == rules_name.end() ){
                                 return 0;
+                        }
                         return iter->second;
                 }
+
                 Parser(){
-                        rules.push_back({});
-                        expr_allocators.push_back(nullptr);
-                        stmt_allocators.push_back(nullptr);
-                        stmt_parsers.push_back(nullptr);
-                        expr_parsers.push_back(nullptr);
-                        dispatch_types.push_back(false);
-                        is_rule.push_back(true);
+                        rules.push_back( {} );
+                        
+                        expr_allocators.push_back( nullptr );
+                        stmt_allocators.push_back( nullptr );
+
+                        stmt_parsers.push_back( nullptr );
+                        expr_parsers.push_back( nullptr );
+
+                        dispatch_types.push_back( false );
+                        
+                        is_rule.push_back( true );
                 }
                 
                 Statement* expectStatement(bool move = true){
+                        
                         DBG_TRACE();
+                        
                         ForceLexerError();
-                        if(failed)
+                        if ( failed )
                                 return nullptr;
-                        auto tok = move?lex.nextTok():lex.lastTok();
-                        auto dp = dispatch(tok);
-                        if(!dp || dispatch_types[dp])
-                                return new Statement(expectExpression(false)); // hack. I know. ;)
-                        if(!is_rule[dp])
-                                return stmt_parsers[dp](*this,lex);
-                        auto parsed = processRule(dp,tok);
-                        if(parsed.size()==0)
+                        
+                        auto tok = (move) ? (lex.nextTok()) : (lex.lastTok());
+                        
+                        auto dp = dispatch( tok );
+                        
+                        if (!dp || dispatch_types[ dp ])
+                                return new Statement( expectExpression( false ) ); // hack. 
+                        
+                        if ( !is_rule[ dp ] )
+                                return stmt_parsers[dp]( *this, lex );
+                        
+                        auto parsed = processRule( dp, tok );
+                        if ( parsed.size() == 0 )
                                 return nullptr;
-                        return statement_factory(dp,parsed);
+                        
+                        return statement_factory( dp, parsed );
                 }
                 
                 Expression * expectExpression(bool move = true){
@@ -550,7 +516,7 @@ namespace lambda{
                         return tmp;
                 }
                 void _show_rule(uint32_t id, uint32_t tok){                        
-                                std::wcerr << (dispatch_types[id]?L"[expr] ":L"[stmt] ") << id << L' ';
+                                std::wcerr << (dispatch_types[id]?L"[expr] [id:":L"[stmt] [id:") << id << L"] ";
                                 if(!is_rule[id]){
                                         std::wcerr << lex.tokById(tok) <<L"(" << tok << L")" << L" <function>\n";
                                         return;
@@ -576,6 +542,11 @@ namespace lambda{
                                         }
                                 } 
                 }
+                
+                const uint32_t rulesCount()const{
+                        return rules.size();
+                }
+
                 void showRules(){
                         for(auto&x:dispatch_by_token){
                                 _show_rule(x.second, x.first);
@@ -583,68 +554,4 @@ namespace lambda{
                         }
                 }
         };
-        // i like c++ template magic, so this can simplify way of def syntax rules.
-        //this 3 structs is used only in templates matching(like functional pattern matching)
-        // wstring      => Token
-        // id           => Ident
-        // expr         => Expr
-        // stmt         => Stmt
-        // typeof{Token,Ident,Expr,Stmt} = ParseVal
-        // compiler should inline all this functions, no overhead :)
-        namespace Syntax{
-                struct _SYNTAX_IDENTIFER_{};
-                struct _SYNTAX_EXPRESSION{};
-                struct _SYNTAX_STATEMENT{};
-                struct _SYNTAX_STRING{};
-                struct _SYNTAX_OPERATOR{};
-                struct _SYNTAX_TERM{};
-                struct _SYNTAX_NUMBER{};
-                template<typename T> struct _SYNTAX_ANY{};
-                _SYNTAX_IDENTIFER_              id;
-                _SYNTAX_EXPRESSION              expr;
-                _SYNTAX_STATEMENT               stmt;
-                _SYNTAX_STRING                  str;
-                _SYNTAX_OPERATOR                oper;
-                _SYNTAX_NUMBER                  num;
-                _SYNTAX_TERM                    term;
-
-                inline ParseVal match(std::wstring s){
-                        return ParseVal::Token(s);
-                }
-                inline ParseVal match(uint32_t id){
-                        return ParseVal::Rule(id);
-                }
-                inline ParseVal match(_SYNTAX_IDENTIFER_){
-                        return ParseVal::Ident();
-                }
-                inline ParseVal match(_SYNTAX_EXPRESSION){
-                        return ParseVal::Expr();
-                }
-                inline ParseVal match(_SYNTAX_STATEMENT){
-                        return ParseVal::Stmt();
-                }
-                inline ParseVal match(_SYNTAX_STRING){
-                        return ParseVal::Str();
-                }
-                inline ParseVal match(_SYNTAX_OPERATOR){
-                        return ParseVal::Oper();
-                }
-                inline ParseVal match(_SYNTAX_NUMBER){
-                        return ParseVal::Num();
-                }
-                inline ParseVal match(_SYNTAX_TERM){
-                        return ParseVal::Term();
-                }
-                inline ParseVal match(ParseVal val){
-                        return val;
-                }
-                template<typename T> inline ParseVal match(_SYNTAX_ANY<T>){
-                        return ParseVal::Any(match(T()));
-                }
-                template<typename T> inline _SYNTAX_ANY<T> any(T){return _SYNTAX_ANY<T>();}
-        }
-        // std::wstring tok - safes from some errors. syntax rule _must_ starts with uniq token.
-        template<typename ... Rest>  inline std::vector<ParseVal> defSyntax(std::wstring tok ,Rest ... rest){
-                return std::vector<ParseVal> {Syntax::match(tok),Syntax::match(rest)...};
-        }
 }
