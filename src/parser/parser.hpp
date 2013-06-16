@@ -28,6 +28,7 @@ namespace lambda{
                 std::vector< stmt_parser >                                      stmt_parsers;
                 std::vector< expr_parser >                                      expr_parsers;
                 std::unordered_map< std::wstring, uint32_t >                    rules_name;
+                std::vector<std::wstring>                                       rules_name_by_id;
 
                 Lexer lex;
                 
@@ -80,7 +81,7 @@ namespace lambda{
 
                         for(std::vector< ParseVal >::iterator i = rule.begin() + 1, e = rule.end(); i!=e; ++i ){
 
-                                DBG_TRACE("%d %d",i->type, i->token_id);
+                                DBG_TRACE( "rule:%d token_id:%d type:%s", dp, i->token_id, ParseVal::type2str( i->any, i->type ).c_str() );
 
                                 if( i->type == ParseValType::Token){
                                         auto token = lex.nextTok();
@@ -515,6 +516,9 @@ namespace lambda{
 
                 Parser(){                        
                         rules.push_back( {} );
+
+                        rules_name_by_id.push_back(L"");
+                        
                         
                         expr_allocators.push_back( nullptr );
                         stmt_allocators.push_back( nullptr );
@@ -595,6 +599,8 @@ namespace lambda{
                         expr_allocators.push_back(nullptr);
                         stmt_allocators.push_back(alloc);
                         
+                        rules_name_by_id.push_back(name);
+                        
                         dispatch_types.push_back(false);
                         
                         uint32_t tmp;
@@ -608,6 +614,8 @@ namespace lambda{
                         stmt_allocators.push_back(nullptr);
                         expr_allocators.push_back(alloc);
                         
+                        rules_name_by_id.push_back(name);
+                        
                         dispatch_types.push_back(true);
                         
                         return rules_name[name] = defRule(lambda::ParseValType::Expression, rule);
@@ -615,6 +623,8 @@ namespace lambda{
                 
                 uint32_t defExpr(std::wstring name ,ParseVal begin_tok,expr_parser allocator){                        
                         assert(begin_tok.type == ParseValType::Token&& "defExpr User Function, begin_tok!=Token");
+                        
+                        rules_name_by_id.push_back(name);
                         
                         is_rule.push_back(false);
                         
@@ -636,6 +646,8 @@ namespace lambda{
                 uint32_t defStmt(std::wstring name ,ParseVal begin_tok,stmt_parser allocator){                        
                         assert(begin_tok.type == ParseValType::Token&& "defExpr User Function, begin_tok!=Token");
                         
+                        rules_name_by_id.push_back(name);
+
                         is_rule.push_back(false);
                         
                         stmt_parsers.push_back(allocator);
@@ -653,47 +665,72 @@ namespace lambda{
                         return tmp;
                 }
                 void _show_rule(uint32_t id, uint32_t tok){                       
-                                std::wcerr << (dispatch_types[id]?L"[expr] [id:":L"[stmt] [id:") << id << L"] ";
-                        
-                                if( !is_rule[id]){
-                                        std::wcerr << lex.tokById(tok) <<L"(" << tok << L")" << L" <function>\n";
-                                        return;
-                                }
-                        
-                                for(auto&x:rules[id]){                        
-                                        if(x.type == ParseValType::Token){
-                                                std::wcerr << x.val/* << L"(" << x.token_id << L") "*/ << L" ";
-                                        }else if(x.type == ParseValType::Expression){
-                                                std::wcerr << (x.any?L"any!":L"") <<  L"$expr ";
-                                        }else if(x.type == ParseValType::Statement){
-                                                std::wcerr << (x.any?L"any!":L"") << L"#stmt ";
-                                        }else if(x.type == ParseValType::Rule){                        
-                                                std::wcerr << (x.any?L"any!":L"") << L"@rule< ";
-                        
-                                                if(x.rule_id == id){
-                                                        std::wcerr << L"self! ";
-                                                }
-                                                else{
-                                                        _show_rule(x.rule_id, rules[x.rule_id].front().token_id);
-                                                }
-                        
-                                                std::wcerr << L"> ";
-                        
-                                        }else if(x.type == ParseValType::Term){
-                                                std::wcerr << (x.any?L"any!":L"") << L"#term ";
-                                        }else{                                                
-                                                std::wcerr << (x.any?L"any!":L"") << L"%id ";
-                                        }
-                                } 
-                }
+                        std::wcerr << (dispatch_types[id]?L"[expr] [id:":L"[stmt] [id:") << id << L"] ";
                 
+                        if( !is_rule[id]){
+                                std::wcerr << lex.tokById(tok) <<L"(" << tok << L")" << L" <function>\n";                                        return;
+                        }
+                        
+                        for(auto&x:rules[id]){                        
+                                if(x.type == ParseValType::Token){
+                                        std::wcerr << x.val/* << L"(" << x.token_id << L") "*/ << L" ";
+                                }else if(x.type == ParseValType::Expression){
+                                        std::wcerr << (x.any?L"any!":L"") <<  L"$expr ";
+                                }else if(x.type == ParseValType::Statement){
+                                        std::wcerr << (x.any?L"any!":L"") << L"#stmt ";
+                                }else if(x.type == ParseValType::Rule){                        
+                                        std::wcerr << (x.any?L"any!":L"") << L"@rule< ";
+                                        if(x.rule_id == id){
+                                                std::wcerr << L"self! ";
+                                        }
+                                        else{
+                                                _show_rule(x.rule_id, rules[x.rule_id].front().token_id);
+                                        }
+                
+                                        std::wcerr << L"> ";
+
+                                }else if(x.type == ParseValType::Term){
+                                        std::wcerr << (x.any?L"any!":L"") << L"#term ";
+                                }else{                                                
+                                        std::wcerr << (x.any?L"any!":L"") << L"%id ";
+                                }
+                        } 
+                }
+                void ShowRuleBNF(uint32_t id, uint32_t tok){
+                        std::wcerr << (dispatch_types[id]?L"[expr] <":L"[stmt] <") << rules_name_by_id[id] << L"> ::= ";                        
+                        if( !is_rule[id] ){
+                                std::wcerr << "\'" << lex.tokById(tok) <<L"\' " << L" <user-function>\n";
+                                return;
+                        }
+                        for( auto& x : rules[ id ] ){
+                                using i = ParseValType;
+                                auto& j = std::wcerr;
+                                switch(x.type){
+                                        case i::Token: j << L'\"' << lex.tokById(x.token_id) << L'\"'; break; 
+                                        case i::Identifer: j << L"<id>"; break;
+                                        case i::Statement: j << L"<stmt>"; break;
+                                        case i::Expression: j << L"<expr>"; break;
+                                        case i::String: j << L"<str>"; break;
+                                        case i::Number: j << L"<num>"; break;
+                                        case i::Rule: j << L"<" << rules_name_by_id[x.rule_id] << L">"; break;
+                                        case i::Term: j << L"<term>"; break;
+                                        default: j << L"<$err>"; break;
+                                }
+                                if(x.any){
+                                        j << L"*";
+                                }
+                                j << L" ";
+                        }
+
+                }
                 const uint32_t rulesCount()const{
                         return rules.size();
                 }
 
                 void showRules(){                        
-                        for(auto&x:dispatch_by_token){                        
-                                _show_rule(x.second, x.first);                        
+                        for(auto&x:dispatch_by_token){        
+                                std::wcerr << L"[id:" << x.second << L"] ";                 
+                                ShowRuleBNF(x.second, x.first);                        
                                 std::wcerr << std::endl;                        
                         }
                 }
