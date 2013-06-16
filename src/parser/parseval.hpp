@@ -18,7 +18,8 @@ namespace lambda{
                 String,
                 Operator,
                 Number,
-                Term
+                Term,
+                SelfRecursive // this would be preprocessed via defRule into Rule(Parser::rules_count());
         };
         
         struct ParseVal{
@@ -62,6 +63,41 @@ namespace lambda{
                 }
                 inline static ParseVal Term(){
                         return ParseVal(ParseValType::Term);
+                }
+                inline static ParseVal SelfRecursive(){
+                        return ParseVal(ParseValType::SelfRecursive);
+                }
+                static const std::wstring type2wstr(bool any,ParseValType type){
+                        using i = ParseValType;
+                        const std::wstring prefix = (any)?L"any!":L""; 
+                        switch (type){
+                                case i::Token: return prefix+L"tok";
+                                case i::Expression: return prefix+L"expr";
+                                case i::Statement: return prefix+L"stmt";
+                                case i::Term: return prefix+L"term";
+                                case i::Rule: return prefix+L"rule";
+                                case i::Identifer: return prefix+L"id";
+                                case i::Number: return prefix+L"num";
+                                case i::Operator: return prefix+L"op";
+                                case i::String: return prefix+L"str";
+                                default: return L"$err"; 
+                        }
+                }
+                static const std::string type2str(bool any,ParseValType type){
+                        using i = ParseValType;
+                        const std::string prefix = (any)?"any!":""; 
+                        switch (type){
+                                case i::Token: return prefix+"tok";
+                                case i::Expression: return prefix+"expr";
+                                case i::Statement: return prefix+"stmt";
+                                case i::Term: return prefix+"term";
+                                case i::Rule: return prefix+"rule";
+                                case i::Identifer: return prefix+"id";
+                                case i::Number: return prefix+"num";
+                                case i::Operator: return prefix+"op";
+                                case i::String: return prefix+"str";
+                                default: return "$err"; 
+                        }
                 }
 
         };
