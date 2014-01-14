@@ -1,4 +1,3 @@
-
 #include <iostream>
 
 #include "lexer/lexer.hpp"
@@ -60,7 +59,7 @@ int main(int argc, char const *argv[])
         // <let> ::= 'let' <identifer> '=' <expression>
         auto let = par.defStmt(L"let",
                 defSyntax(
-                        (L"let"),id,(L"="),expr
+                        (L"let"),id,any(id),(L"="),expr
                 ),
                 [](Parser::ParseInfo&){
                         std::wcerr << L"let alloc\n";
@@ -71,7 +70,7 @@ int main(int argc, char const *argv[])
         // <def> ::= 'def' <identifer> '=' <expression>
         par.defStmt(L"def",
                 defSyntax(
-                        (L"def"),any(id),(L"="),expr
+                        (L"def"),id,any(id),(L"="),expr
                 ),
                 [](Parser::ParseInfo&){
                         std::wcerr << L"def alloc\n";
@@ -89,7 +88,7 @@ int main(int argc, char const *argv[])
 
         par.defExpr(L"lambda",
                 defSyntax(
-                        (L"\\"), id, (L"->"), expr
+                        (L"\\"), id,any(id), (L"->"), expr
                 ),
                 [](Parser::ParseInfo&){return new Expression();}
         );
