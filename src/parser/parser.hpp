@@ -705,6 +705,9 @@ namespace lambda{
                         for( auto& x : rules[ id ] ){
                                 using i = ParseValType;
                                 auto& j = std::wcerr;
+                                if (x.any) {
+                                        j << L"{";       
+                                }
                                 switch(x.type){
                                         case i::Token: j << L'\"' << lex.tokById(x.token_id) << L'\"'; break; 
                                         case i::Identifer: j << L"<id>"; break;
@@ -717,7 +720,7 @@ namespace lambda{
                                         default: j << L"<$err>"; break;
                                 }
                                 if(x.any){
-                                        j << L"*";
+                                        j << L"}";
                                 }
                                 j << L" ";
                         }
