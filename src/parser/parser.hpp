@@ -189,8 +189,8 @@ namespace lambda{
                                         struct __tmp {
                                                 union{
                                                         Expression      * ptre  = nullptr;
-                                                        Statement       * ptrs  = nullptr;
-                                                        void            * ptr   = nullptr;
+                                                        Statement       * ptrs;
+                                                        void            * ptr;
                                                 };
                                                 __tmp(void*ptr):ptr(ptr){}
                                         };
