@@ -106,7 +106,7 @@ namespace lambda{
 
                 union{
                         Statement  ** stmt = nullptr;
-                        Expression ** expr = nullptr;
+                        Expression ** expr;
                 };
                 uint32_t size = 0;
 
